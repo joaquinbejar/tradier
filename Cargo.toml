@@ -1,0 +1,56 @@
+[package]
+name = "tradier"
+version = "0.1.0"
+edition = "2021"
+authors = ["Joaquin Bejar <jb@taunais.com>"]
+description = "This project involves the development of a Rust library for managing trades and market data using the Tradier broker API. The main objective is to provide an efficient and secure interface for executing trades, retrieving real-time quotes, managing portfolios, and accessing historical market data. The library focuses on leveraging Rust's performance and concurrency advantages, enabling integration into high-frequency trading applications and data-intensive financial processing."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/joaquinbejar/tradier"
+homepage = "https://github.com/joaquinbejar/tradier"
+keywords = ["finance", "options", "trading"]
+categories = ["finance", "data-structures"]
+
+include = [
+    "src/**/*.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+    "examples/**/*.rs",
+    "tests/**/*.rs",
+    "Makefile",
+    "rust-toolchain.toml",
+    "Draws/**/*.png",
+    "Docker/**/*.Dockerfile",
+    "Docker/**/*.yml",
+]
+
+[dependencies]
+approx = "0.5.1"
+rust_decimal = "1.36.0"
+rust_decimal_macros = "1.36.0"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+reqwest = { version = "0.12.7", features = ["json"] }
+tokio = { version = "1.40.0", features = ["full"] }
+serde = { version = "1.0.210", features = ["derive"] }
+base64 = "0.22.1"
+
+[dev-dependencies]
+assert-json-diff = "2.0.2"
+mockall = "0.13.0"
+tokio-test = "0.4.4"
+futures-util = "0.3.30"
+async-std = "1.12.0"
+lazy_static = "1.5.0"
+
+
+
+[[test]]
+name = "tests"
+path = "tests/unit/mod.rs"
+
+[lib]
+name = "tradier"
+path = "src/lib.rs"
+
