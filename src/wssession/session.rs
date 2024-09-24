@@ -1,15 +1,15 @@
+use crate::config::base::Config;
+use crate::constants::TRADIER_SESSION_TIMEOUT;
+use chrono::{DateTime, Duration, Utc};
+use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use tokio;
-use tracing::{debug};
-use reqwest::Client as HttpClient;
-use crate::config::base::Config;
 use std::sync::atomic::{AtomicBool, Ordering};
-use chrono::{DateTime, Duration, Utc};
-use crate::constants::TRADIER_SESSION_TIMEOUT;
+use tracing::debug;
 
 static SESSION_EXISTS: AtomicBool = AtomicBool::new(false);
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Session {
     pub session_type: SessionType,
@@ -28,7 +28,6 @@ pub struct StreamInfo {
     pub session_id: String,
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum SessionType {
     Market,
@@ -37,17 +36,28 @@ pub enum SessionType {
 
 impl Session {
     pub async fn new(session_type: SessionType, config: &Config) -> Result<Self, Box<dyn Error>> {
-        if SESSION_EXISTS.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        if SESSION_EXISTS
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return Err("Session already exists".into());
         }
 
         let client = HttpClient::new();
         let url = match session_type {
-            SessionType::Market => format!("{}/v1/markets/events/wssession", config.rest_api.base_url),
-            SessionType::Account => format!("{}/v1/accounts/events/wssession", config.rest_api.base_url),
+            SessionType::Market => {
+                format!("{}/v1/markets/events/session", config.rest_api.base_url)
+            }
+            SessionType::Account => {
+                format!("{}/v1/accounts/events/session", config.rest_api.base_url)
+            }
         };
+        debug!("Url to use to get the Session ID: {}", url);
 
-        let access_token = config.credentials.access_token.as_ref()
+        let access_token = config
+            .credentials
+            .access_token
+            .as_ref()
             .ok_or("Access token not found in configuration")?;
 
         let response = client
@@ -75,9 +85,9 @@ impl Session {
                 created_at: Utc::now(),
             })
         } else {
-            SESSION_EXISTS.store(false, Ordering::SeqCst);  // Reset the flag if wssession creation fails
+            SESSION_EXISTS.store(false, Ordering::SeqCst); // Reset the flag if session creation fails
             Err(format!(
-                "Failed to create {} wssession. Status: {}. Body: {}",
+                "Failed to create {} session. Status: {}. Body: {}",
                 match session_type {
                     SessionType::Market => "market",
                     SessionType::Account => "account",
@@ -85,11 +95,11 @@ impl Session {
                 status,
                 body
             )
-                .into())
+            .into())
         }
     }
 
-
+    #[allow(dead_code)]
     pub fn is_expired(&self) -> bool {
         Utc::now() - self.created_at > Duration::minutes(TRADIER_SESSION_TIMEOUT)
     }
@@ -112,10 +122,10 @@ impl Drop for Session {
 #[cfg(test)]
 mod tests_session {
     use super::*;
-    use mockito::Server;
     use crate::config::base::{Credentials, RestApiConfig, StreamingConfig};
-    use std::sync::Once;
+    use mockito::Server;
     use serial_test::serial;
+    use std::sync::Once;
 
     static INIT: Once = Once::new();
 
@@ -166,7 +176,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/accounts/events/wssession")
+            .mock("POST", "/v1/accounts/events/session")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json_data)
@@ -177,14 +187,20 @@ mod tests_session {
         let session = Session::new(SessionType::Account, &config).await.unwrap();
 
         assert_eq!(session.session_type, SessionType::Account);
-        assert_eq!(session.get_websocket_url(), "wss://ws.tradier.com/v1/accounts/events");
-        assert_eq!(session.get_session_id(), "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3");
+        assert_eq!(
+            session.get_websocket_url(),
+            "wss://ws.tradier.com/v1/accounts/events"
+        );
+        assert_eq!(
+            session.get_session_id(),
+            "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+        );
 
         mock.assert_async().await;
     }
 
     #[tokio::test]
-    #[serial]  // Se ejecuta de forma secuencial
+    #[serial] // Se ejecuta de forma secuencial
     async fn test_market_session_creation() {
         setup();
         let mut server = Server::new_async().await;
@@ -197,7 +213,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/markets/events/wssession")
+            .mock("POST", "/v1/markets/events/session")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json_data)
@@ -208,14 +224,20 @@ mod tests_session {
         let session = Session::new(SessionType::Market, &config).await.unwrap();
 
         assert_eq!(session.session_type, SessionType::Market);
-        assert_eq!(session.get_websocket_url(), "https://stream.tradier.com/v1/markets/events");
-        assert_eq!(session.get_session_id(), "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3");
+        assert_eq!(
+            session.get_websocket_url(),
+            "https://stream.tradier.com/v1/markets/events"
+        );
+        assert_eq!(
+            session.get_session_id(),
+            "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+        );
 
         mock.assert_async().await;
     }
 
     #[tokio::test]
-    #[serial]  // Se ejecuta de forma secuencial
+    #[serial] // Se ejecuta de forma secuencial
     async fn test_multiple_session_creation() {
         setup();
         let mut server = Server::new_async().await;
@@ -228,7 +250,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/markets/events/wssession")
+            .mock("POST", "/v1/markets/events/session")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json_data)
@@ -238,22 +260,28 @@ mod tests_session {
 
         let config = create_test_config(&server.url(), false);
 
-        // Create first wssession
+        // Create first session
         let session1 = Session::new(SessionType::Market, &config).await.unwrap();
 
-        // Attempt to create second wssession immediately (should fail)
+        // Attempt to create second session immediately (should fail)
         let session2 = Session::new(SessionType::Market, &config).await;
-        assert!(session2.is_err(), "Should not be able to create a second session");
-        assert!(session2.unwrap_err().to_string().contains("Session already exists"));
+        assert!(
+            session2.is_err(),
+            "Should not be able to create a second session"
+        );
+        assert!(session2
+            .unwrap_err()
+            .to_string()
+            .contains("Session already exists"));
 
-        // Drop the first wssession to reset the state
+        // Drop the first session to reset the state
         drop(session1);
 
         mock.assert_async().await;
     }
 
     #[tokio::test]
-    #[serial]  // Se ejecuta de forma secuencial
+    #[serial] // Se ejecuta de forma secuencial
     async fn test_content_length_header() {
         setup();
         let mut server = Server::new_async().await;
@@ -266,7 +294,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/markets/events/wssession")
+            .mock("POST", "/v1/markets/events/session")
             .match_header("Content-Length", "0")
             .with_status(200)
             .with_header("content-type", "application/json")
