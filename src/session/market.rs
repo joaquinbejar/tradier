@@ -6,7 +6,12 @@ pub struct MarketSession(Session);
 
 impl MarketSession {
     pub async fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
-        Ok(MarketSession(Session::new(SessionType::Market, config).await?))
+        match Session::new(SessionType::Market, config).await {
+            Ok(session) => Ok(MarketSession(session)),
+            Err(e) => {
+                Err(format!("Error creating account session: {}", e).into())
+            }
+        }
     }
 
     pub fn get_session_id(&self) -> &str {

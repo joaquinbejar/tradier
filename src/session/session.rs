@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use tokio;
-use tracing::{debug, error, info};
+use tracing::{debug};
 use reqwest::Client as HttpClient;
 use crate::config::base::Config;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -110,7 +110,7 @@ impl Drop for Session {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_session {
     use super::*;
     use mockito::Server;
     use crate::config::base::{Credentials, RestApiConfig, StreamingConfig};
@@ -153,7 +153,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]  // Se ejecuta de forma secuencial
+    #[serial]
     async fn test_account_session_creation() {
         setup();
         let mut server = Server::new_async().await;
