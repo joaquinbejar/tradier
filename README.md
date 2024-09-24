@@ -63,7 +63,6 @@ The project is structured as follows:
 3. **Examples** (`examples/`):
     - `auth_example.rs`: Example of how to use authentication in the library.
     - `auth_websocket_example.rs`: Example of using authenticated WebSocket connections.
-    - `auth_websocket_example_old.rs`: An older version of the WebSocket example, kept for reference.
 
 4. **Source Code** (`src/`):
     - **Configuration** (`config/`):
