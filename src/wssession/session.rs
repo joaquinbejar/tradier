@@ -43,8 +43,8 @@ impl Session {
 
         let client = HttpClient::new();
         let url = match session_type {
-            SessionType::Market => format!("{}/v1/markets/events/session", config.rest_api.base_url),
-            SessionType::Account => format!("{}/v1/accounts/events/session", config.rest_api.base_url),
+            SessionType::Market => format!("{}/v1/markets/events/wssession", config.rest_api.base_url),
+            SessionType::Account => format!("{}/v1/accounts/events/wssession", config.rest_api.base_url),
         };
 
         let access_token = config.credentials.access_token.as_ref()
@@ -75,9 +75,9 @@ impl Session {
                 created_at: Utc::now(),
             })
         } else {
-            SESSION_EXISTS.store(false, Ordering::SeqCst);  // Reset the flag if session creation fails
+            SESSION_EXISTS.store(false, Ordering::SeqCst);  // Reset the flag if wssession creation fails
             Err(format!(
-                "Failed to create {} session. Status: {}. Body: {}",
+                "Failed to create {} wssession. Status: {}. Body: {}",
                 match session_type {
                     SessionType::Market => "market",
                     SessionType::Account => "account",
@@ -166,7 +166,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/accounts/events/session")
+            .mock("POST", "/v1/accounts/events/wssession")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json_data)
@@ -197,7 +197,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/markets/events/session")
+            .mock("POST", "/v1/markets/events/wssession")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json_data)
@@ -228,7 +228,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/markets/events/session")
+            .mock("POST", "/v1/markets/events/wssession")
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json_data)
@@ -238,15 +238,15 @@ mod tests_session {
 
         let config = create_test_config(&server.url(), false);
 
-        // Create first session
+        // Create first wssession
         let session1 = Session::new(SessionType::Market, &config).await.unwrap();
 
-        // Attempt to create second session immediately (should fail)
+        // Attempt to create second wssession immediately (should fail)
         let session2 = Session::new(SessionType::Market, &config).await;
         assert!(session2.is_err(), "Should not be able to create a second session");
         assert!(session2.unwrap_err().to_string().contains("Session already exists"));
 
-        // Drop the first session to reset the state
+        // Drop the first wssession to reset the state
         drop(session1);
 
         mock.assert_async().await;
@@ -266,7 +266,7 @@ mod tests_session {
         }
         "#;
         let mock = server
-            .mock("POST", "/v1/markets/events/session")
+            .mock("POST", "/v1/markets/events/wssession")
             .match_header("Content-Length", "0")
             .with_status(200)
             .with_header("content-type", "application/json")

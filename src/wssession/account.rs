@@ -1,15 +1,16 @@
 use crate::config::base::Config;
-use crate::session::session::{Session, SessionType};
+use crate::wssession::session::{Session, SessionType};
 use std::error::Error;
 
-pub struct MarketSession(Session);
+#[derive(Debug, Clone)]
+pub struct AccountSession(Session);
 
-impl MarketSession {
+impl AccountSession {
     pub async fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
-        match Session::new(SessionType::Market, config).await {
-            Ok(session) => Ok(MarketSession(session)),
+        match Session::new(SessionType::Account, config).await {
+            Ok(session) => Ok(AccountSession(session)),
             Err(e) => {
-                Err(format!("Error creating account session: {}", e).into())
+                Err(format!("Error creating account wssession: {}", e).into())
             }
         }
     }
