@@ -1,10 +1,13 @@
+use crate::constants::{
+    TRADIER_API_BASE_URL, TRADIER_STREAM_EVENTS_PATH, TRADIER_STREAM_HTTP_BASE_URL,
+    TRADIER_WS_BASE_URL,
+};
 use serde::Deserialize;
 use std::env;
 use std::fmt;
 use std::fmt::Debug;
 use std::str::FromStr;
 use tracing::error;
-use crate::constants::{TRADIER_API_BASE_URL, TRADIER_STREAM_EVENTS_PATH, TRADIER_STREAM_HTTP_BASE_URL, TRADIER_WS_BASE_URL};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Credentials {
@@ -96,8 +99,14 @@ impl Config {
     pub fn new() -> Self {
         Config {
             credentials: Credentials {
-                client_id: get_env_or_default("TRADIER_CLIENT_ID", String::from("default_client_id")),
-                client_secret: get_env_or_default("TRADIER_CLIENT_SECRET", String::from("default_client_secret")),
+                client_id: get_env_or_default(
+                    "TRADIER_CLIENT_ID",
+                    String::from("default_client_id"),
+                ),
+                client_secret: get_env_or_default(
+                    "TRADIER_CLIENT_SECRET",
+                    String::from("default_client_secret"),
+                ),
                 access_token: env::var("TRADIER_ACCESS_TOKEN").ok(),
                 refresh_token: env::var("TRADIER_REFRESH_TOKEN").ok(),
             },
@@ -127,20 +136,25 @@ impl Config {
     }
 
     pub fn get_ws_url(&self) -> String {
-        format!("{}{}", self.streaming.ws_base_url, self.streaming.events_path)
+        format!(
+            "{}{}",
+            self.streaming.ws_base_url, self.streaming.events_path
+        )
     }
 
     pub fn get_http_url(&self) -> String {
-        format!("{}{}", self.streaming.http_base_url, self.streaming.events_path)
+        format!(
+            "{}{}",
+            self.streaming.http_base_url, self.streaming.events_path
+        )
     }
 }
-
 
 #[cfg(test)]
 mod tests_config {
     use super::*;
-    use std::sync::Once;
     use std::sync::Mutex;
+    use std::sync::Once;
 
     static INIT: Once = Once::new();
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
@@ -190,30 +204,45 @@ mod tests_config {
     #[test]
     fn test_config_new_with_env_vars() {
         setup();
-        with_env_vars(vec![
-            ("TRADIER_CLIENT_ID", "test_client_id"),
-            ("TRADIER_CLIENT_SECRET", "test_client_secret"),
-            ("TRADIER_ACCESS_TOKEN", "test_access_token"),
-            ("TRADIER_REFRESH_TOKEN", "test_refresh_token"),
-            ("TRADIER_REST_BASE_URL", "https://test-api.tradier.com"),
-            ("TRADIER_REST_TIMEOUT", "60"),
-            ("TRADIER_STREAM_HTTP_BASE_URL", "https://test-stream.tradier.com"),
-            ("TRADIER_WS_BASE_URL", "wss://test-ws.tradier.com"),
-            ("TRADIER_STREAM_EVENTS_PATH", "/v1/test/events"),
-            ("TRADIER_STREAM_RECONNECT_INTERVAL", "10"),
-        ], || {
-            let config = Config::new();
-            assert_eq!(config.credentials.client_id, "test_client_id");
-            assert_eq!(config.credentials.client_secret, "test_client_secret");
-            assert_eq!(config.credentials.access_token, Some("test_access_token".to_string()));
-            assert_eq!(config.credentials.refresh_token, Some("test_refresh_token".to_string()));
-            assert_eq!(config.rest_api.base_url, "https://test-api.tradier.com");
-            assert_eq!(config.rest_api.timeout, 60);
-            assert_eq!(config.streaming.http_base_url, "https://test-stream.tradier.com");
-            assert_eq!(config.streaming.ws_base_url, "wss://test-ws.tradier.com");
-            assert_eq!(config.streaming.events_path, "/v1/test/events");
-            assert_eq!(config.streaming.reconnect_interval, 10);
-        });
+        with_env_vars(
+            vec![
+                ("TRADIER_CLIENT_ID", "test_client_id"),
+                ("TRADIER_CLIENT_SECRET", "test_client_secret"),
+                ("TRADIER_ACCESS_TOKEN", "test_access_token"),
+                ("TRADIER_REFRESH_TOKEN", "test_refresh_token"),
+                ("TRADIER_REST_BASE_URL", "https://test-api.tradier.com"),
+                ("TRADIER_REST_TIMEOUT", "60"),
+                (
+                    "TRADIER_STREAM_HTTP_BASE_URL",
+                    "https://test-stream.tradier.com",
+                ),
+                ("TRADIER_WS_BASE_URL", "wss://test-ws.tradier.com"),
+                ("TRADIER_STREAM_EVENTS_PATH", "/v1/test/events"),
+                ("TRADIER_STREAM_RECONNECT_INTERVAL", "10"),
+            ],
+            || {
+                let config = Config::new();
+                assert_eq!(config.credentials.client_id, "test_client_id");
+                assert_eq!(config.credentials.client_secret, "test_client_secret");
+                assert_eq!(
+                    config.credentials.access_token,
+                    Some("test_access_token".to_string())
+                );
+                assert_eq!(
+                    config.credentials.refresh_token,
+                    Some("test_refresh_token".to_string())
+                );
+                assert_eq!(config.rest_api.base_url, "https://test-api.tradier.com");
+                assert_eq!(config.rest_api.timeout, 60);
+                assert_eq!(
+                    config.streaming.http_base_url,
+                    "https://test-stream.tradier.com"
+                );
+                assert_eq!(config.streaming.ws_base_url, "wss://test-ws.tradier.com");
+                assert_eq!(config.streaming.events_path, "/v1/test/events");
+                assert_eq!(config.streaming.reconnect_interval, 10);
+            },
+        );
     }
 
     #[test]
@@ -221,7 +250,10 @@ mod tests_config {
         setup();
         with_env_vars(vec![], || {
             let config = Config::new();
-            assert_eq!(config.get_ws_url(), format!("{}{}", TRADIER_WS_BASE_URL, TRADIER_STREAM_EVENTS_PATH));
+            assert_eq!(
+                config.get_ws_url(),
+                format!("{}{}", TRADIER_WS_BASE_URL, TRADIER_STREAM_EVENTS_PATH)
+            );
         });
     }
 
@@ -230,7 +262,13 @@ mod tests_config {
         setup();
         with_env_vars(vec![], || {
             let config = Config::new();
-            assert_eq!(config.get_http_url(), format!("{}{}", TRADIER_STREAM_HTTP_BASE_URL, TRADIER_STREAM_EVENTS_PATH));
+            assert_eq!(
+                config.get_http_url(),
+                format!(
+                    "{}{}",
+                    TRADIER_STREAM_HTTP_BASE_URL, TRADIER_STREAM_EVENTS_PATH
+                )
+            );
         });
     }
 
