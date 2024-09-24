@@ -9,9 +9,7 @@ impl AccountSession {
     pub async fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
         match Session::new(SessionType::Account, config).await {
             Ok(session) => Ok(AccountSession(session)),
-            Err(e) => {
-                Err(format!("Error creating account wssession: {}", e).into())
-            }
+            Err(e) => Err(format!("Error creating account wssession: {}", e).into()),
         }
     }
 
