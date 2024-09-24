@@ -217,4 +217,4 @@ If you have any questions, issues, or would like to provide feedback, please fee
 - Email: jb@taunais.com
 - GitHub: [joaquinbejar](https://github.com/joaquinbejar)
 
-We appreciate your interest and look forward to your contributions!
+We appreciate your interest and look forward to your contributions !
