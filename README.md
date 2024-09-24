@@ -113,12 +113,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Fetch a quote
     let quote: Quote = client.get_quote("AAPL").await?;
-    println!("AAPL quote: {:?}", quote);
+    info!("AAPL quote: {:?}", quote);
 
     // Place an order
     let order = Order::market("AAPL", 10, tradier::Side::Buy);
     let result = client.place_order(order).await?;
-    println!("Order placed: {:?}", result);
+    info!("Order placed: {:?}", result);
 
     Ok(())
 }
