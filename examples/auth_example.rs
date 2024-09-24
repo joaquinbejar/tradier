@@ -3,7 +3,6 @@ use tokio;
 use tracing::{error, info};
 use tradier::utils::logger::setup_logger;
 use tradier::config::base::Config;
-use tradier::auth::oauth::OAuthClient;
 use reqwest::Client;
 
 async fn verify_authentication(access_token: &str, api_base_url: &str) -> Result<(), Box<dyn Error>> {
