@@ -1,4 +1,4 @@
-use crate::config::base::Config;
+use crate::config::Config;
 use crate::constants::TRADIER_SESSION_TIMEOUT;
 use chrono::{DateTime, Duration, Utc};
 use reqwest::Client as HttpClient;
@@ -122,7 +122,7 @@ impl Drop for Session {
 #[cfg(test)]
 mod tests_session {
     use super::*;
-    use crate::config::base::{Credentials, RestApiConfig, StreamingConfig};
+    use crate::config::{Credentials, RestApiConfig, StreamingConfig};
     use mockito::Server;
     use serial_test::serial;
     use std::sync::Once;

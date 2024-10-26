@@ -1,4 +1,4 @@
-use crate::config::base::Config;
+use crate::config::Config;
 use crate::wssession::session::{Session, SessionType};
 use std::error::Error;
 
