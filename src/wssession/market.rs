@@ -1,4 +1,4 @@
-use crate::config::base::Config;
+use crate::config::Config;
 use crate::constants::TRADIER_WS_BASE_URL;
 use crate::wssession::session::{Session, SessionType};
 use futures_util::{SinkExt, StreamExt};

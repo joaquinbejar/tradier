@@ -9,6 +9,14 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use tracing::error;
 
+/// The `Credentials` struct stores sensitive information required for
+/// authenticating with the Tradier API, including client ID and secret.
+/// 
+/// Fields:
+/// - `client_id`: The client ID for Tradier API authentication.
+/// - `client_secret`: The client secret for Tradier API authentication.
+/// - `access_token`: An optional access token for session-based authentication.
+/// - `refresh_token`: An optional refresh token for renewing the access token.
 #[derive(Debug, Deserialize, Clone)]
 pub struct Credentials {
     pub client_id: String,
@@ -17,6 +25,13 @@ pub struct Credentials {
     pub refresh_token: Option<String>,
 }
 
+/// The `Config` struct encapsulates the main configuration for the Tradier API library, 
+/// including credentials, REST API settings, and WebSocket streaming settings.
+/// 
+/// Fields:
+/// - `credentials`: Holds API credentials for authentication.
+/// - `rest_api`: Configuration for REST API interactions, including URL and timeout.
+/// - `streaming`: Configuration for streaming interactions, including HTTP and WS URLs and settings.
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub credentials: Credentials,
@@ -24,12 +39,24 @@ pub struct Config {
     pub streaming: StreamingConfig,
 }
 
+/// The `RestApiConfig` struct holds configuration specific to REST API interactions.
+/// 
+/// Fields:
+/// - `base_url`: The base URL for the Tradier REST API.
+/// - `timeout`: The timeout duration (in seconds) for REST API requests.
 #[derive(Debug, Deserialize, Clone)]
 pub struct RestApiConfig {
     pub base_url: String,
     pub timeout: u64,
 }
 
+/// The `StreamingConfig` struct holds configuration specific to streaming interactions via HTTP or WebSocket.
+/// 
+/// Fields:
+/// - `http_base_url`: The base URL for HTTP streaming.
+/// - `ws_base_url`: The base URL for WebSocket streaming.
+/// - `events_path`: Path for event streams.
+/// - `reconnect_interval`: Interval (in seconds) for reconnect attempts.
 #[derive(Debug, Deserialize, Clone)]
 pub struct StreamingConfig {
     pub http_base_url: String,
@@ -38,6 +65,8 @@ pub struct StreamingConfig {
     pub reconnect_interval: u64,
 }
 
+/// Implements `fmt::Display` for `Credentials`, providing a JSON-style output
+/// with redacted sensitive information for security.
 impl fmt::Display for Credentials {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{\"client_id\":\"[REDACTED]\",\"client_secret\":\"[REDACTED]\",\"access_token\":{},\"refresh_token\":{}}}",
@@ -46,6 +75,7 @@ impl fmt::Display for Credentials {
     }
 }
 
+/// Implements `fmt::Display` for `Config`, displaying all fields in JSON format.
 impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -56,6 +86,7 @@ impl fmt::Display for Config {
     }
 }
 
+/// Implements `fmt::Display` for `RestApiConfig`, displaying the REST API base URL and timeout in JSON format.
 impl fmt::Display for RestApiConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -66,6 +97,8 @@ impl fmt::Display for RestApiConfig {
     }
 }
 
+/// Implements `fmt::Display` for `StreamingConfig`, displaying HTTP and WebSocket URLs,
+/// event path, and reconnect interval in JSON format.
 impl fmt::Display for StreamingConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -76,6 +109,14 @@ impl fmt::Display for StreamingConfig {
     }
 }
 
+/// Retrieves an environment variable or returns a default value if the variable is missing or cannot be parsed.
+/// 
+/// Parameters:
+/// - `env_var`: The name of the environment variable.
+/// - `default`: The default value to return if the environment variable is not set or unparsable.
+/// 
+/// Returns:
+/// - The value of the environment variable if available and valid; otherwise, the default value.
 pub fn get_env_or_default<T: FromStr>(env_var: &str, default: T) -> T
 where
     <T as FromStr>::Err: Debug,
@@ -89,13 +130,19 @@ where
     }
 }
 
+
 impl Default for Config {
+    /// Creates a default `Config` instance by calling `Config::new`.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl Config {
+    /// Constructs a new `Config` instance with environment variables or defaults if unavailable.
+    /// 
+    /// Returns:
+    /// - `Config` instance initialized with credentials, REST API, and streaming settings.
     pub fn new() -> Self {
         Config {
             credentials: Credentials {
@@ -135,6 +182,10 @@ impl Config {
         }
     }
 
+    /// Generates the WebSocket URL by concatenating the base WebSocket URL and event path.
+    /// 
+    /// Returns:
+    /// - A `String` containing the full WebSocket URL.
     pub fn get_ws_url(&self) -> String {
         format!(
             "{}{}",
@@ -142,6 +193,10 @@ impl Config {
         )
     }
 
+    /// Generates the HTTP streaming URL by concatenating the base HTTP URL and event path.
+    /// 
+    /// Returns:
+    /// - A `String` containing the full HTTP streaming URL.
     pub fn get_http_url(&self) -> String {
         format!(
             "{}{}",
@@ -159,12 +214,18 @@ mod tests_config {
     static INIT: Once = Once::new();
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
+    /// Initializes global test setup.
     fn setup() {
         INIT.call_once(|| {
             // Initialize any global test setup here
         });
     }
 
+    /// Temporarily sets environment variables for a test and restores them after.
+    /// 
+    /// Parameters:
+    /// - `vars`: A vector of (key, value) pairs to set as environment variables.
+    /// - `test`: A closure to execute with the environment variables set.
     fn with_env_vars<F>(vars: Vec<(&str, &str)>, test: F)
     where
         F: FnOnce(),
