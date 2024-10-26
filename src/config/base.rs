@@ -11,7 +11,7 @@ use tracing::error;
 
 /// The `Credentials` struct stores sensitive information required for
 /// authenticating with the Tradier API, including client ID and secret.
-/// 
+///
 /// Fields:
 /// - `client_id`: The client ID for Tradier API authentication.
 /// - `client_secret`: The client secret for Tradier API authentication.
@@ -25,9 +25,9 @@ pub struct Credentials {
     pub refresh_token: Option<String>,
 }
 
-/// The `Config` struct encapsulates the main configuration for the Tradier API library, 
+/// The `Config` struct encapsulates the main configuration for the Tradier API library,
 /// including credentials, REST API settings, and WebSocket streaming settings.
-/// 
+///
 /// Fields:
 /// - `credentials`: Holds API credentials for authentication.
 /// - `rest_api`: Configuration for REST API interactions, including URL and timeout.
@@ -40,7 +40,7 @@ pub struct Config {
 }
 
 /// The `RestApiConfig` struct holds configuration specific to REST API interactions.
-/// 
+///
 /// Fields:
 /// - `base_url`: The base URL for the Tradier REST API.
 /// - `timeout`: The timeout duration (in seconds) for REST API requests.
@@ -51,7 +51,7 @@ pub struct RestApiConfig {
 }
 
 /// The `StreamingConfig` struct holds configuration specific to streaming interactions via HTTP or WebSocket.
-/// 
+///
 /// Fields:
 /// - `http_base_url`: The base URL for HTTP streaming.
 /// - `ws_base_url`: The base URL for WebSocket streaming.
@@ -110,11 +110,11 @@ impl fmt::Display for StreamingConfig {
 }
 
 /// Retrieves an environment variable or returns a default value if the variable is missing or cannot be parsed.
-/// 
+///
 /// Parameters:
 /// - `env_var`: The name of the environment variable.
 /// - `default`: The default value to return if the environment variable is not set or unparsable.
-/// 
+///
 /// Returns:
 /// - The value of the environment variable if available and valid; otherwise, the default value.
 pub fn get_env_or_default<T: FromStr>(env_var: &str, default: T) -> T
@@ -130,7 +130,6 @@ where
     }
 }
 
-
 impl Default for Config {
     /// Creates a default `Config` instance by calling `Config::new`.
     fn default() -> Self {
@@ -140,7 +139,7 @@ impl Default for Config {
 
 impl Config {
     /// Constructs a new `Config` instance with environment variables or defaults if unavailable.
-    /// 
+    ///
     /// Returns:
     /// - `Config` instance initialized with credentials, REST API, and streaming settings.
     pub fn new() -> Self {
@@ -183,7 +182,7 @@ impl Config {
     }
 
     /// Generates the WebSocket URL by concatenating the base WebSocket URL and event path.
-    /// 
+    ///
     /// Returns:
     /// - A `String` containing the full WebSocket URL.
     pub fn get_ws_url(&self) -> String {
@@ -194,7 +193,7 @@ impl Config {
     }
 
     /// Generates the HTTP streaming URL by concatenating the base HTTP URL and event path.
-    /// 
+    ///
     /// Returns:
     /// - A `String` containing the full HTTP streaming URL.
     pub fn get_http_url(&self) -> String {
@@ -222,7 +221,7 @@ mod tests_config {
     }
 
     /// Temporarily sets environment variables for a test and restores them after.
-    /// 
+    ///
     /// Parameters:
     /// - `vars`: A vector of (key, value) pairs to set as environment variables.
     /// - `test`: A closure to execute with the environment variables set.
