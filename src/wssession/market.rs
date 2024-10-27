@@ -10,6 +10,14 @@ use tracing::{error, info};
 use tungstenite::Message;
 use url::Url;
 
+/// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
+/// 
+/// Options include:
+/// - `TRADE`: Filters trade-related events.
+/// - `QUOTE`: Filters quote-related events.
+/// - `SUMMARY`: Filters summary events.
+/// - `TIMESALE`: Filters time sale events.
+/// - `TRADEX`: Filters extended trade events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MarketSessionFilter {
     TRADE,
@@ -20,6 +28,10 @@ pub enum MarketSessionFilter {
 }
 
 impl MarketSessionFilter {
+    /// Returns the string representation of each filter option.
+    ///
+    /// # Returns
+    /// - `&'static str`: The string corresponding to the filter type.
     fn as_str(&self) -> &'static str {
         match self {
             MarketSessionFilter::TRADE => "trade",
@@ -31,6 +43,16 @@ impl MarketSessionFilter {
     }
 }
 
+/// Payload for a Tradier Market WebSocket session. This structure defines the settings
+/// for a market session, including symbols, filters, and various optional parameters.
+///
+/// Fields:
+/// - `symbols`: Vector of symbol strings to subscribe to in the market session.
+/// - `filter`: Optional vector of `MarketSessionFilter` values to apply to the session.
+/// - `session_id`: Unique session identifier.
+/// - `linebreak`: Optional boolean to indicate if line breaks are to be used in streaming data.
+/// - `valid_only`: Optional boolean that, if set to `true`, filters out invalid data.
+/// - `advanced_details`: Optional boolean for additional data in advanced detail format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketSessionPayload {
     pub symbols: Vec<String>,
@@ -47,6 +69,14 @@ pub struct MarketSessionPayload {
 }
 
 impl MarketSessionPayload {
+    /// Constructs a new `MarketSessionPayload` with default filter settings.
+    ///
+    /// # Arguments
+    /// - `symbols`: A vector of symbols to subscribe to.
+    /// - `session_id`: A unique session identifier for the WebSocket connection.
+    ///
+    /// # Returns
+    /// - `Self`: A new `MarketSessionPayload` instance with default filter and optional settings.
     pub fn new(symbols: Vec<String>, session_id: String) -> Self {
         MarketSessionPayload {
             symbols,
@@ -58,6 +88,11 @@ impl MarketSessionPayload {
         }
     }
 
+    /// Converts the payload to a WebSocket `Message` for sending.
+    ///
+    /// # Returns
+    /// - `Ok(Message)`: The WebSocket message if serialization is successful.
+    /// - `Err(Box<dyn Error>)`: An error if serialization fails.
     pub fn get_message(&self) -> Result<Message, Box<dyn Error>> {
         let result_payload_json = serde_json::to_value(self);
         match result_payload_json {
@@ -71,6 +106,13 @@ impl MarketSessionPayload {
 }
 
 impl Display for MarketSessionPayload {
+    /// Implements `Display` for `MarketSessionPayload` to show formatted details.
+    ///
+    /// Format includes:
+    /// - Symbols
+    /// - Filters
+    /// - Session ID
+    /// - Optional settings (linebreak, valid_only, advanced_details)
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let filter_str: Vec<String> = self.filter.as_ref().map_or(vec![], |filters| {
             filters.iter().map(|f| f.as_str().to_string()).collect()
@@ -89,9 +131,19 @@ impl Display for MarketSessionPayload {
     }
 }
 
+/// Represents a market session that can be used to receive streaming data
+/// from the Tradier WebSocket API.
 pub struct MarketSession(Session);
 
 impl MarketSession {
+    /// Creates a new `MarketSession` using the specified configuration.
+    ///
+    /// # Arguments
+    /// - `config`: A reference to the `Config` structure containing API settings.
+    ///
+    /// # Returns
+    /// - `Ok(MarketSession)`: A `MarketSession` instance if the session was created successfully.
+    /// - `Err(Box<dyn Error>)`: If session creation fails.
     pub async fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
         match Session::new(SessionType::Market, config).await {
             Ok(session) => Ok(MarketSession(session)),
@@ -99,14 +151,36 @@ impl MarketSession {
         }
     }
 
+    /// Retrieves the session ID associated with the `MarketSession`.
+    ///
+    /// # Returns
+    /// - `&str`: The session ID string.
     pub fn get_session_id(&self) -> &str {
         self.0.get_session_id()
     }
 
+    /// Retrieves the WebSocket URL for the `MarketSession`.
+    ///
+    /// # Returns
+    /// - `&str`: The WebSocket URL string.
     pub fn get_websocket_url(&self) -> &str {
         self.0.get_websocket_url()
     }
 
+    /// Initiates a WebSocket connection and streams data based on the provided payload.
+    ///
+    /// # Arguments
+    /// - `payload`: A `MarketSessionPayload` specifying symbols and settings for the WebSocket session.
+    ///
+    /// # Returns
+    /// - `Ok(())`: If the WebSocket connection was successfully managed.
+    /// - `Err(Box<dyn Error>)`: If the WebSocket connection or data streaming fails.
+    ///
+    /// # Behavior
+    /// - Connects to the WebSocket endpoint.
+    /// - Sends the specified `MarketSessionPayload`.
+    /// - Listens for incoming messages and logs text or binary data.
+    /// - Terminates on connection close or error.
     pub async fn ws_stream(&self, payload: MarketSessionPayload) -> Result<(), Box<dyn Error>> {
         let uri = &format!("{}/v1/markets/events", TRADIER_WS_BASE_URL);
         let url = Url::parse(uri)?;
