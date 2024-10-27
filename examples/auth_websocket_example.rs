@@ -2,8 +2,8 @@ use std::error::Error;
 use tracing::{error, info};
 use tradier::config::Config;
 use tradier::utils::logger::setup_logger;
-use tradier::wssession::account::AccountSession;
-use tradier::wssession::market::{MarketSession, MarketSessionFilter, MarketSessionPayload};
+use tradier::wssession::AccountSession;
+use tradier::wssession::{MarketSession, MarketSessionFilter, MarketSessionPayload};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
