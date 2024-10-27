@@ -7,27 +7,42 @@ use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::debug;
 
+/// A global flag used to enforce a singleton session. 
+/// This flag ensures that only one session instance can exist at any given time.
 static SESSION_EXISTS: AtomicBool = AtomicBool::new(false);
 
+/// Represents a Tradier API session, handling WebSocket streaming configuration for either 
+/// account or market data.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Session {
+    /// The type of session, either `Account` or `Market`.
     pub session_type: SessionType,
+    /// Contains information about the WebSocket stream, including URL and session ID.
     pub stream_info: StreamInfo,
     created_at: DateTime<Utc>,
 }
+
+/// Response structure for the Tradier API session request. Holds the stream information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionResponse {
+    /// Contains the WebSocket stream information such as URL and session ID.
     pub stream: StreamInfo,
 }
 
+/// Holds information about the WebSocket stream, including the URL and session ID.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamInfo {
+    /// WebSocket URL for the stream.
     pub url: String,
+    /// Unique identifier for the session, used to maintain connection context.
     #[serde(rename = "sessionid")]
     pub session_id: String,
 }
 
+
+/// Specifies the type of Tradier API session, either `Market` for market data
+/// or `Account` for account-related data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SessionType {
     Market,
@@ -35,6 +50,19 @@ pub enum SessionType {
 }
 
 impl Session {
+    /// Creates a new `Session` instance based on the specified session type and configuration.
+    ///
+    /// - **session_type**: Specifies the type of session, either `SessionType::Market` or `SessionType::Account`.
+    /// - **config**: Reference to `Config`, providing required details like base URLs and access tokens.
+    ///
+    /// # Returns
+    /// - `Ok(Session)`: A new `Session` if successful.
+    /// - `Err(Box<dyn Error>)`: If session creation fails due to an existing session, missing token, or API error.
+    ///
+    /// # Errors
+    /// - Fails if a session already exists (singleton restriction).
+    /// - Fails if the access token is missing or invalid.
+    /// - Fails if the API request encounters network issues or the API returns an error status.
     pub async fn new(session_type: SessionType, config: &Config) -> Result<Self, Box<dyn Error>> {
         if SESSION_EXISTS
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -99,21 +127,35 @@ impl Session {
         }
     }
 
+    /// Checks if the session has expired based on the configured session timeout.
+    ///
+    /// # Returns
+    /// - `true` if the session duration exceeds `TRADIER_SESSION_TIMEOUT`, otherwise `false`.
     #[allow(dead_code)]
     pub fn is_expired(&self) -> bool {
         Utc::now() - self.created_at > Duration::minutes(TRADIER_SESSION_TIMEOUT)
     }
 
+    /// Retrieves the WebSocket URL associated with the session.
+    ///
+    /// # Returns
+    /// - `&str`: The WebSocket URL.
     pub fn get_websocket_url(&self) -> &str {
         &self.stream_info.url
     }
 
+    /// Retrieves the session ID associated with the session.
+    ///
+    /// # Returns
+    /// - `&str`: The session ID.
     pub fn get_session_id(&self) -> &str {
         &self.stream_info.session_id
     }
 }
 
 impl Drop for Session {
+    /// Custom drop implementation for `Session` that resets the `SESSION_EXISTS` flag, allowing
+    /// a new session to be created once the current one is dropped.
     fn drop(&mut self) {
         SESSION_EXISTS.store(false, Ordering::SeqCst);
     }
