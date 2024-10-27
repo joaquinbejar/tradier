@@ -7,11 +7,11 @@ use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::debug;
 
-/// A global flag used to enforce a singleton session. 
+/// A global flag used to enforce a singleton session.
 /// This flag ensures that only one session instance can exist at any given time.
 static SESSION_EXISTS: AtomicBool = AtomicBool::new(false);
 
-/// Represents a Tradier API session, handling WebSocket streaming configuration for either 
+/// Represents a Tradier API session, handling WebSocket streaming configuration for either
 /// account or market data.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -39,7 +39,6 @@ pub struct StreamInfo {
     #[serde(rename = "sessionid")]
     pub session_id: String,
 }
-
 
 /// Specifies the type of Tradier API session, either `Market` for market data
 /// or `Account` for account-related data.

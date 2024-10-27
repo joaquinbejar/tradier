@@ -11,7 +11,7 @@ use tungstenite::Message;
 use url::Url;
 
 /// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
-/// 
+///
 /// Options include:
 /// - `TRADE`: Filters trade-related events.
 /// - `QUOTE`: Filters quote-related events.
