@@ -1,17 +1,18 @@
-use crate::config::Config;
 use crate::constants::TRADIER_SESSION_TIMEOUT;
+use crate::error::Result;
+use crate::{config::Config, error::Error};
 use chrono::{DateTime, Duration, Utc};
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
+use std::fmt::Display;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::debug;
 
-/// A global flag used to enforce a singleton session. 
+/// A global flag used to enforce a singleton session.
 /// This flag ensures that only one session instance can exist at any given time.
 static SESSION_EXISTS: AtomicBool = AtomicBool::new(false);
 
-/// Represents a Tradier API session, handling WebSocket streaming configuration for either 
+/// Represents a Tradier API session, handling WebSocket streaming configuration for either
 /// account or market data.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -40,13 +41,21 @@ pub struct StreamInfo {
     pub session_id: String,
 }
 
-
 /// Specifies the type of Tradier API session, either `Market` for market data
 /// or `Account` for account-related data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SessionType {
     Market,
     Account,
+}
+
+impl Display for SessionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SessionType::Market => write!(f, "Market"),
+            SessionType::Account => write!(f, "Account"),
+        }
+    }
 }
 
 impl Session {
@@ -63,12 +72,12 @@ impl Session {
     /// - Fails if a session already exists (singleton restriction).
     /// - Fails if the access token is missing or invalid.
     /// - Fails if the API request encounters network issues or the API returns an error status.
-    pub async fn new(session_type: SessionType, config: &Config) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(session_type: SessionType, config: &Config) -> Result<Self> {
         if SESSION_EXISTS
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
-            return Err("Session already exists".into());
+            return Err(Error::SessionAlreadyExists);
         }
 
         let client = HttpClient::new();
@@ -86,7 +95,7 @@ impl Session {
             .credentials
             .access_token
             .as_ref()
-            .ok_or("Access token not found in configuration")?;
+            .ok_or(Error::MissingAccessToken)?;
 
         let response = client
             .post(&url)
@@ -114,16 +123,7 @@ impl Session {
             })
         } else {
             SESSION_EXISTS.store(false, Ordering::SeqCst); // Reset the flag if session creation fails
-            Err(format!(
-                "Failed to create {} session. Status: {}. Body: {}",
-                match session_type {
-                    SessionType::Market => "market",
-                    SessionType::Account => "account",
-                },
-                status,
-                body
-            )
-            .into())
+            Err(Error::CreateSessionError(session_type, status, body))
         }
     }
 

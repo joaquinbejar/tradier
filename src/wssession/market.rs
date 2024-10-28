@@ -1,9 +1,9 @@
 use crate::config::Config;
 use crate::constants::TRADIER_WS_BASE_URL;
 use crate::wssession::session::{Session, SessionType};
+use crate::Result;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tokio_tungstenite::connect_async;
 use tracing::{error, info};
@@ -11,7 +11,7 @@ use tungstenite::Message;
 use url::Url;
 
 /// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
-/// 
+///
 /// Options include:
 /// - `TRADE`: Filters trade-related events.
 /// - `QUOTE`: Filters quote-related events.
@@ -93,7 +93,7 @@ impl MarketSessionPayload {
     /// # Returns
     /// - `Ok(Message)`: The WebSocket message if serialization is successful.
     /// - `Err(Box<dyn Error>)`: An error if serialization fails.
-    pub fn get_message(&self) -> Result<Message, Box<dyn Error>> {
+    pub fn get_message(&self) -> Result<Message> {
         let result_payload_json = serde_json::to_value(self);
         match result_payload_json {
             Ok(value) => Ok(Message::Text(value.to_string())),
@@ -144,11 +144,10 @@ impl MarketSession {
     /// # Returns
     /// - `Ok(MarketSession)`: A `MarketSession` instance if the session was created successfully.
     /// - `Err(Box<dyn Error>)`: If session creation fails.
-    pub async fn new(config: &Config) -> Result<Self, Box<dyn Error>> {
-        match Session::new(SessionType::Market, config).await {
-            Ok(session) => Ok(MarketSession(session)),
-            Err(e) => Err(format!("Error creating market WS session: {}", e).into()),
-        }
+    pub async fn new(config: &Config) -> Result<Self> {
+        Ok(MarketSession(
+            Session::new(SessionType::Market, config).await?,
+        ))
     }
 
     /// Retrieves the session ID associated with the `MarketSession`.
@@ -181,7 +180,7 @@ impl MarketSession {
     /// - Sends the specified `MarketSessionPayload`.
     /// - Listens for incoming messages and logs text or binary data.
     /// - Terminates on connection close or error.
-    pub async fn ws_stream(&self, payload: MarketSessionPayload) -> Result<(), Box<dyn Error>> {
+    pub async fn ws_stream(&self, payload: MarketSessionPayload) -> Result<()> {
         let uri = &format!("{}/v1/markets/events", TRADIER_WS_BASE_URL);
         let url = Url::parse(uri)?;
 
