@@ -323,7 +323,7 @@ mod tests_session {
     }
 
     #[tokio::test]
-    #[serial] // Se ejecuta de forma secuencial
+    #[serial]
     async fn test_content_length_header() {
         setup();
         let mut server = Server::new_async().await;
