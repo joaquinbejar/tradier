@@ -164,6 +164,7 @@ impl Drop for Session {
 #[cfg(test)]
 mod tests_session {
     use super::*;
+    use pretty_assertions::{assert_eq, assert_matches};
     use crate::config::{Credentials, RestApiConfig, StreamingConfig};
     use mockito::Server;
     use serial_test::serial;
@@ -348,6 +349,85 @@ mod tests_session {
         let session = Session::new(SessionType::Market, &config).await.unwrap();
 
         assert_eq!(session.session_type, SessionType::Market);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_missing_access_token_error() {
+        setup();
+        let mut server = Server::new_async().await;
+        let config = Config {
+            credentials: Credentials {
+                client_id: "test_id".to_string(),
+                client_secret: "test_secret".to_string(),
+                access_token: None, // Missing access token
+                refresh_token: None,
+            },
+            rest_api: RestApiConfig {
+                base_url: server.url().to_string(),
+                timeout: 30,
+            },
+            streaming: StreamingConfig {
+                http_base_url: "".to_string(),
+                ws_base_url: "".to_string(),
+                events_path: "".to_string(),
+                reconnect_interval: 5,
+            },
+        };
+
+        let session_result = Session::new(SessionType::Market, &config).await;
+        assert!(session_result.is_err());
+        assert_matches!(
+            session_result.unwrap_err(),
+            Error::MissingAccessToken
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_api_request_failure_error() {
+        setup();
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/v1/markets/events/session")
+            .with_status(500) // Simulate server error
+            .with_header("content-type", "application/json")
+            .with_body("Internal Server Error")
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url(), false);
+
+        let session_result = Session::new(SessionType::Market, &config).await;
+        assert!(session_result.is_err());
+        if let Error::CreateSessionError(_, status, body) = session_result.unwrap_err() {
+            assert_eq!(status.as_u16(), 500);
+            assert_eq!(body, "Internal Server Error");
+        }
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_invalid_json_response_error() {
+        setup();
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/v1/markets/events/session")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body("{ invalid json") // Malformed JSON
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url(), false);
+
+        let session_result = Session::new(SessionType::Market, &config).await;
+        assert!(session_result.is_err());
+        assert_matches!(session_result.unwrap_err(), Error::JsonParsingError(_));
+
         mock.assert_async().await;
     }
 }
