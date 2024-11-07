@@ -2,15 +2,17 @@ use crate::config::Config;
 use crate::wssession::session::{Session, SessionType};
 use crate::Result;
 
+use super::session_manager::SessionManager;
+
 /// `AccountSession` is a wrapper around a `Session` specifically for account-level WebSocket interactions.
 /// This struct provides methods to initialize a new account session and retrieve essential session details.
 ///
 /// `AccountSession` encapsulates `Session` with `SessionType::Account` and provides
 /// convenience methods to interact with Tradier's account-level WebSocket services.
 #[derive(Debug, Clone)]
-pub struct AccountSession(Session);
+pub struct AccountSession<'a>(Session<'a>);
 
-impl AccountSession {
+impl<'a> AccountSession<'a> {
     /// Creates a new `AccountSession` using the provided configuration.
     ///
     /// # Arguments
@@ -22,18 +24,19 @@ impl AccountSession {
     ///
     /// ```should_panic
     /// use tradier::config::Config;
-    /// use tradier::wssession::AccountSession;
+    /// use tradier::wssession::{AccountSession, SessionManager};
     /// #[tokio::main]
     /// async fn main() {
     ///     let config = Config::new();
-    ///     let account_session = AccountSession::new(&config)
+    ///     let session_manager = SessionManager::default();
+    ///     let account_session = AccountSession::new(&session_manager, &config)
     ///         .await
     ///         .expect("caller to handle failure");
     /// }
     /// ```
-    pub async fn new(config: &Config) -> Result<Self> {
+    pub async fn new(session_manager: &'a SessionManager, config: &Config) -> Result<Self> {
         Ok(AccountSession(
-            Session::new(SessionType::Account, config).await?,
+            Session::new(session_manager, SessionType::Account, config).await?,
         ))
     }
 
@@ -45,11 +48,12 @@ impl AccountSession {
     /// # Example
     /// ```should_panic
     /// use tradier::config::Config;
-    /// use tradier::wssession::AccountSession;
+    /// use tradier::wssession::{AccountSession, SessionManager};
     /// #[tokio::main]
     /// async fn main() {
     ///     let config = Config::new();
-    ///     let account_session = AccountSession::new(&config)
+    ///     let session_manager = SessionManager::default();
+    ///     let account_session = AccountSession::new(&session_manager, &config)
     ///         .await
     ///         .expect("caller to handle failure");
     ///     let session_id = account_session.get_session_id();
@@ -68,11 +72,12 @@ impl AccountSession {
     /// # Example
     /// ```should_panic
     /// use tradier::config::Config;
-    /// use tradier::wssession::AccountSession;
+    /// use tradier::wssession::{SessionManager, AccountSession};
     /// #[tokio::main]
     /// async fn main() {
     ///     let config = Config::new();
-    ///     let account_session = AccountSession::new(&config)
+    ///     let session_manager = SessionManager::default();
+    ///     let account_session = AccountSession::new(&session_manager, &config)
     ///         .await
     ///         .expect("caller to handle failure");
     ///     let websocket_url = account_session.get_websocket_url();

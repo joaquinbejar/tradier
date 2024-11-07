@@ -10,6 +10,8 @@ use tracing::{error, info};
 use tungstenite::Message;
 use url::Url;
 
+use super::session_manager::SessionManager;
+
 /// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
 ///
 /// Options include:
@@ -133,9 +135,9 @@ impl Display for MarketSessionPayload {
 
 /// Represents a market session that can be used to receive streaming data
 /// from the Tradier WebSocket API.
-pub struct MarketSession(Session);
+pub struct MarketSession<'a>(Session<'a>);
 
-impl MarketSession {
+impl<'a> MarketSession<'a> {
     /// Creates a new `MarketSession` using the specified configuration.
     ///
     /// # Arguments
@@ -144,9 +146,9 @@ impl MarketSession {
     /// # Returns
     /// - `Ok(MarketSession)`: A `MarketSession` instance if the session was created successfully.
     /// - `Err(Box<dyn Error>)`: If session creation fails.
-    pub async fn new(config: &Config) -> Result<Self> {
+    pub async fn new(session_manager: &'a SessionManager, config: &Config) -> Result<Self> {
         Ok(MarketSession(
-            Session::new(SessionType::Market, config).await?,
+            Session::new(session_manager, SessionType::Market, config).await?,
         ))
     }
 

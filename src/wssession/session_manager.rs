@@ -1,23 +1,19 @@
+use crate::{Error, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// A singleton manager to track session existence.
-#[derive(Default, Clone)]
+#[derive(Default, Debug)]
 pub struct SessionManager {
     session_exists: AtomicBool,
 }
 
 impl SessionManager {
-    /// Creates a new `SessionManager`.
-    pub fn new() -> Self {
-        Self {
-            session_exists: AtomicBool::new(false),
-        }
-    }
 
     /// Attempts to acquire a session.
     /// Returns `Ok(())` if successful; otherwise, returns `Err` if a session already exists.
-    pub fn acquire_session(&self) -> Result<(), Error> {
-        if self.session_exists
+    pub fn acquire_session(&self) -> Result<()> {
+        if self
+            .session_exists
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
         {
@@ -37,4 +33,3 @@ impl Drop for SessionManager {
         self.release_session();
     }
 }
-

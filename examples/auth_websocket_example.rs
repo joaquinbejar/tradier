@@ -2,7 +2,7 @@ use std::error::Error;
 use tracing::{error, info};
 use tradier::config::Config;
 use tradier::utils::logger::setup_logger;
-use tradier::wssession::AccountSession;
+use tradier::wssession::{AccountSession, SessionManager};
 use tradier::wssession::{MarketSession, MarketSessionFilter, MarketSessionPayload};
 
 #[tokio::main]
@@ -11,8 +11,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let config = Config::new();
 
+    let session_manager = SessionManager::default();
     loop {
-        match MarketSession::new(&config).await {
+        match MarketSession::new(&session_manager, &config).await {
             Ok(market_session) => {
                 info!(
                     "Market streaming wssession created with id: {}",
@@ -39,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         // Example of creating an AccountSession (not used in streaming)
-        match AccountSession::new(&config).await {
+        match AccountSession::new(&session_manager, &config).await {
             Ok(account_session) => {
                 info!(
                     "Account wssession created with id: {}",

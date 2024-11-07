@@ -5,23 +5,21 @@ use chrono::{DateTime, Duration, Utc};
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::debug;
 
-/// A global flag used to enforce a singleton session.
-/// This flag ensures that only one session instance can exist at any given time.
-static SESSION_EXISTS: AtomicBool = AtomicBool::new(false);
+use super::session_manager::SessionManager;
 
 /// Represents a Tradier API session, handling WebSocket streaming configuration for either
 /// account or market data.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Session {
+pub struct Session<'a> {
     /// The type of session, either `Account` or `Market`.
     pub session_type: SessionType,
     /// Contains information about the WebSocket stream, including URL and session ID.
     pub stream_info: StreamInfo,
     created_at: DateTime<Utc>,
+    session_manager: &'a SessionManager,
 }
 
 /// Response structure for the Tradier API session request. Holds the stream information.
@@ -58,7 +56,7 @@ impl Display for SessionType {
     }
 }
 
-impl Session {
+impl<'a> Session<'a> {
     /// Creates a new `Session` instance based on the specified session type and configuration.
     ///
     /// - **session_type**: Specifies the type of session, either `SessionType::Market` or `SessionType::Account`.
@@ -72,58 +70,61 @@ impl Session {
     /// - Fails if a session already exists (singleton restriction).
     /// - Fails if the access token is missing or invalid.
     /// - Fails if the API request encounters network issues or the API returns an error status.
-    pub async fn new(session_type: SessionType, config: &Config) -> Result<Self> {
-        if SESSION_EXISTS
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {
-            return Err(Error::SessionAlreadyExists);
-        }
+    pub async fn new(
+        session_manager: &'a SessionManager,
+        session_type: SessionType,
+        config: &Config,
+    ) -> Result<Self> {
+        match session_manager.acquire_session() {
+            Ok(_) => {
+                let client = HttpClient::new();
+                let url = match session_type {
+                    SessionType::Market => {
+                        format!("{}/v1/markets/events/session", config.rest_api.base_url)
+                    }
+                    SessionType::Account => {
+                        format!("{}/v1/accounts/events/session", config.rest_api.base_url)
+                    }
+                };
+                debug!("Url to use to get the Session ID: {}", url);
 
-        let client = HttpClient::new();
-        let url = match session_type {
-            SessionType::Market => {
-                format!("{}/v1/markets/events/session", config.rest_api.base_url)
+                let access_token = config
+                    .credentials
+                    .access_token
+                    .as_ref()
+                    .ok_or(Error::MissingAccessToken)?;
+
+                let response = client
+                    .post(&url)
+                    .header("Authorization", format!("Bearer {}", access_token))
+                    .header("Accept", "application/json")
+                    .header("Content-Length", "0")
+                    .body("")
+                    .send()
+                    .await?;
+
+                let status = response.status();
+                let headers = response.headers().clone();
+                debug!("Response status: {}", status);
+                debug!("Response headers: {:?}", headers);
+
+                let body = response.text().await?;
+                debug!("Response body: {}", body);
+
+                if status.is_success() {
+                    let session_response: SessionResponse = serde_json::from_str(&body)?;
+                    Ok(Session {
+                        session_type,
+                        stream_info: session_response.stream,
+                        created_at: Utc::now(),
+                        session_manager,
+                    })
+                } else {
+                    session_manager.release_session();
+                    Err(Error::CreateSessionError(session_type, status, body))
+                }
             }
-            SessionType::Account => {
-                format!("{}/v1/accounts/events/session", config.rest_api.base_url)
-            }
-        };
-        debug!("Url to use to get the Session ID: {}", url);
-
-        let access_token = config
-            .credentials
-            .access_token
-            .as_ref()
-            .ok_or(Error::MissingAccessToken)?;
-
-        let response = client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", access_token))
-            .header("Accept", "application/json")
-            .header("Content-Length", "0")
-            .body("")
-            .send()
-            .await?;
-
-        let status = response.status();
-        let headers = response.headers().clone();
-        debug!("Response status: {}", status);
-        debug!("Response headers: {:?}", headers);
-
-        let body = response.text().await?;
-        debug!("Response body: {}", body);
-
-        if status.is_success() {
-            let session_response: SessionResponse = serde_json::from_str(&body)?;
-            Ok(Session {
-                session_type,
-                stream_info: session_response.stream,
-                created_at: Utc::now(),
-            })
-        } else {
-            SESSION_EXISTS.store(false, Ordering::SeqCst); // Reset the flag if session creation fails
-            Err(Error::CreateSessionError(session_type, status, body))
+            Err(e) => Err(e),
         }
     }
 
@@ -153,24 +154,12 @@ impl Session {
     }
 }
 
-impl Drop for Session {
-    /// Custom drop implementation for `Session` that resets the `SESSION_EXISTS` flag, allowing
-    /// a new session to be created once the current one is dropped.
-    fn drop(&mut self) {
-        SESSION_EXISTS.store(false, Ordering::SeqCst);
-    }
-}
-
 #[cfg(test)]
 mod tests_session {
     use super::*;
-    use pretty_assertions::{assert_eq, assert_matches};
     use crate::config::{Credentials, RestApiConfig, StreamingConfig};
     use mockito::Server;
-    use serial_test::serial;
-    use std::sync::Once;
-
-    static INIT: Once = Once::new();
+    use pretty_assertions::{assert_eq, assert_matches};
 
     // Helper function to create a test config
     fn create_test_config(server_url: &str, is_sandbox: bool) -> Config {
@@ -198,17 +187,8 @@ mod tests_session {
         }
     }
 
-    fn setup() {
-        INIT.call_once(|| {
-            // Reset the SESSION_EXISTS flag before each test
-            SESSION_EXISTS.store(false, Ordering::SeqCst);
-        });
-    }
-
     #[tokio::test]
-    #[serial]
     async fn test_account_session_creation() {
-        setup();
         let mut server = Server::new_async().await;
         let json_data = r#"
         {
@@ -227,8 +207,12 @@ mod tests_session {
             .await;
 
         let config = create_test_config(&server.url(), false);
-        let session = Session::new(SessionType::Account, &config).await.unwrap();
-
+        let session_manager = SessionManager::default();
+        {
+        let session = Session::new(&session_manager, SessionType::Account, &config)
+            .await
+            .unwrap();
+        
         assert_eq!(session.session_type, SessionType::Account);
         assert_eq!(
             session.get_websocket_url(),
@@ -238,14 +222,12 @@ mod tests_session {
             session.get_session_id(),
             "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
         );
-
+    }
         mock.assert_async().await;
     }
 
     #[tokio::test]
-    #[serial] // Se ejecuta de forma secuencial
     async fn test_market_session_creation() {
-        setup();
         let mut server = Server::new_async().await;
         let json_data = r#"
         {
@@ -264,7 +246,10 @@ mod tests_session {
             .await;
 
         let config = create_test_config(&server.url(), false);
-        let session = Session::new(SessionType::Market, &config).await.unwrap();
+        let session_manager = SessionManager::default();
+        let session = Session::new(&session_manager, SessionType::Market, &config)
+            .await
+            .unwrap();
 
         assert_eq!(session.session_type, SessionType::Market);
         assert_eq!(
@@ -280,9 +265,7 @@ mod tests_session {
     }
 
     #[tokio::test]
-    #[serial] // Se ejecuta de forma secuencial
     async fn test_multiple_session_creation() {
-        setup();
         let mut server = Server::new_async().await;
         let json_data = r#"
         {
@@ -302,12 +285,15 @@ mod tests_session {
             .await;
 
         let config = create_test_config(&server.url(), false);
+        let session_manager = SessionManager::default();
 
         // Create first session
-        let session1 = Session::new(SessionType::Market, &config).await.unwrap();
+        let session1 = Session::new(&session_manager, SessionType::Market, &config)
+            .await
+            .unwrap();
 
         // Attempt to create second session immediately (should fail)
-        let session2 = Session::new(SessionType::Market, &config).await;
+        let session2 = Session::new(&session_manager, SessionType::Market, &config).await;
         assert!(
             session2.is_err(),
             "Should not be able to create a second session"
@@ -324,9 +310,7 @@ mod tests_session {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_content_length_header() {
-        setup();
         let mut server = Server::new_async().await;
         let json_data = r#"
         {
@@ -346,17 +330,18 @@ mod tests_session {
             .await;
 
         let config = create_test_config(&server.url(), false);
-        let session = Session::new(SessionType::Market, &config).await.unwrap();
+        let session_manager = SessionManager::default();
+        let session = Session::new(&session_manager, SessionType::Market, &config)
+            .await
+            .unwrap();
 
         assert_eq!(session.session_type, SessionType::Market);
         mock.assert_async().await;
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_missing_access_token_error() {
-        setup();
-        let mut server = Server::new_async().await;
+        let server = Server::new_async().await;
         let config = Config {
             credentials: Credentials {
                 client_id: "test_id".to_string(),
@@ -376,18 +361,14 @@ mod tests_session {
             },
         };
 
-        let session_result = Session::new(SessionType::Market, &config).await;
+        let session_manager = SessionManager::default();
+        let session_result = Session::new(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
-        assert_matches!(
-            session_result.unwrap_err(),
-            Error::MissingAccessToken
-        );
+        assert_matches!(session_result.unwrap_err(), Error::MissingAccessToken);
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_api_request_failure_error() {
-        setup();
         let mut server = Server::new_async().await;
         let mock = server
             .mock("POST", "/v1/markets/events/session")
@@ -398,8 +379,8 @@ mod tests_session {
             .await;
 
         let config = create_test_config(&server.url(), false);
-
-        let session_result = Session::new(SessionType::Market, &config).await;
+        let session_manager = SessionManager::default();
+        let session_result = Session::new(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         if let Error::CreateSessionError(_, status, body) = session_result.unwrap_err() {
             assert_eq!(status.as_u16(), 500);
@@ -410,9 +391,7 @@ mod tests_session {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_invalid_json_response_error() {
-        setup();
         let mut server = Server::new_async().await;
         let mock = server
             .mock("POST", "/v1/markets/events/session")
@@ -423,8 +402,9 @@ mod tests_session {
             .await;
 
         let config = create_test_config(&server.url(), false);
+        let session_manager = SessionManager::default();
 
-        let session_result = Session::new(SessionType::Market, &config).await;
+        let session_result = Session::new(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         assert_matches!(session_result.unwrap_err(), Error::JsonParsingError(_));
 
