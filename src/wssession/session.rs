@@ -13,7 +13,7 @@ use super::session_manager::SessionManager;
 /// account or market data.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Session<'a> {
+pub(crate) struct Session<'a> {
     /// The type of session, either `Account` or `Market`.
     pub session_type: SessionType,
     /// Contains information about the WebSocket stream, including URL and session ID.

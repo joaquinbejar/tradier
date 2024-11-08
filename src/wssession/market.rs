@@ -10,7 +10,7 @@ use tracing::{error, info};
 use tungstenite::Message;
 use url::Url;
 
-use super::session_manager::SessionManager;
+use super::global_session_manager;
 
 /// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
 ///
@@ -146,9 +146,9 @@ impl<'a> MarketSession<'a> {
     /// # Returns
     /// - `Ok(MarketSession)`: A `MarketSession` instance if the session was created successfully.
     /// - `Err(Box<dyn Error>)`: If session creation fails.
-    pub async fn new(session_manager: &'a SessionManager, config: &Config) -> Result<Self> {
+    pub async fn new(config: &Config) -> Result<Self> {
         Ok(MarketSession(
-            Session::new(session_manager, SessionType::Market, config).await?,
+            Session::new(global_session_manager(), SessionType::Market, config).await?,
         ))
     }
 
