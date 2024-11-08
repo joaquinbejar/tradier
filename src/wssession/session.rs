@@ -209,20 +209,20 @@ mod tests_session {
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
         {
-        let session = Session::new(&session_manager, SessionType::Account, &config)
-            .await
-            .unwrap();
-        
-        assert_eq!(session.session_type, SessionType::Account);
-        assert_eq!(
-            session.get_websocket_url(),
-            "wss://ws.tradier.com/v1/accounts/events"
-        );
-        assert_eq!(
-            session.get_session_id(),
-            "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
-        );
-    }
+            let session = Session::new(&session_manager, SessionType::Account, &config)
+                .await
+                .unwrap();
+
+            assert_eq!(session.session_type, SessionType::Account);
+            assert_eq!(
+                session.get_websocket_url(),
+                "wss://ws.tradier.com/v1/accounts/events"
+            );
+            assert_eq!(
+                session.get_session_id(),
+                "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+            );
+        }
         mock.assert_async().await;
     }
 

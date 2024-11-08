@@ -8,7 +8,6 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
-
     /// Attempts to acquire a session.
     /// Returns `Ok(())` if successful; otherwise, returns `Err` if a session already exists.
     pub fn acquire_session(&self) -> Result<()> {
