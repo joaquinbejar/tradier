@@ -50,9 +50,9 @@ impl MarketSessionFilter {
 /// - `symbols`: Vector of symbol strings to subscribe to in the market session.
 /// - `filter`: Optional vector of `MarketSessionFilter` values to apply to the session.
 /// - `session_id`: Unique session identifier.
-/// - `linebreak`: Optional boolean to indicate if line breaks are to be used in streaming data.
-/// - `valid_only`: Optional boolean that, if set to `true`, filters out invalid data.
-/// - `advanced_details`: Optional boolean for additional data in advanced detail format.
+/// - `linebreak`: Optional boolean to insert a linebreak after a completed payload.
+/// - `valid_only`: Optional boolean that, if set to `true`, inludes only ticks considered valid by exchanges.
+/// - `advanced_details`: Optional boolean for additional data in advanced detail format (applicable to timesale payloads only).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketSessionPayload {
     pub symbols: Vec<String>,
