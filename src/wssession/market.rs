@@ -18,7 +18,8 @@ use url::Url;
 /// - `SUMMARY`: Filters summary events.
 /// - `TIMESALE`: Filters time sale events.
 /// - `TRADEX`: Filters extended trade events.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(into = "String")]
 pub enum MarketSessionFilter {
     TRADE,
     QUOTE,
@@ -27,12 +28,12 @@ pub enum MarketSessionFilter {
     TRADEX,
 }
 
-impl MarketSessionFilter {
+impl AsRef<str> for MarketSessionFilter {
     /// Returns the string representation of each filter option.
     ///
     /// # Returns
     /// - `&'static str`: The string corresponding to the filter type.
-    fn as_str(&self) -> &'static str {
+    fn as_ref(&self) -> &'static str {
         match self {
             MarketSessionFilter::TRADE => "trade",
             MarketSessionFilter::QUOTE => "quote",
@@ -40,6 +41,26 @@ impl MarketSessionFilter {
             MarketSessionFilter::TIMESALE => "timesale",
             MarketSessionFilter::TRADEX => "tradex",
         }
+    }
+}
+impl TryFrom<&str> for MarketSessionFilter {
+    type Error = Box<dyn Error>;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "trade" => Ok(MarketSessionFilter::TRADE),
+            "quote" => Ok(MarketSessionFilter::QUOTE),
+            "summary" => Ok(MarketSessionFilter::SUMMARY),
+            "timesale" => Ok(MarketSessionFilter::TIMESALE),
+            "tradex" => Ok(MarketSessionFilter::TRADEX),
+            _ => Err(format!("Unsupported MarketSessionFilter: {}", value).into()),
+        }
+    }
+}
+
+impl From<MarketSessionFilter> for String {
+    fn from(val: MarketSessionFilter) -> Self {
+        val.as_ref().to_owned()
     }
 }
 
@@ -68,6 +89,7 @@ pub struct MarketSessionPayload {
     pub advanced_details: Option<bool>,
 }
 
+#[bon::bon]
 impl MarketSessionPayload {
     /// Constructs a new `MarketSessionPayload` with default filter settings.
     ///
@@ -77,6 +99,7 @@ impl MarketSessionPayload {
     ///
     /// # Returns
     /// - `Self`: A new `MarketSessionPayload` instance with default filter and optional settings.
+    #[builder]
     pub fn new(symbols: Vec<String>, session_id: String) -> Self {
         MarketSessionPayload {
             symbols,
@@ -94,7 +117,7 @@ impl MarketSessionPayload {
     /// - `Ok(Message)`: The WebSocket message if serialization is successful.
     /// - `Err(Box<dyn Error>)`: An error if serialization fails.
     pub fn get_message(&self) -> Result<Message, Box<dyn Error>> {
-        let result_payload_json = serde_json::to_value(self);
+        let result_payload_json = dbg!(serde_json::to_string(self));
         match result_payload_json {
             Ok(value) => Ok(Message::Text(value.to_string())),
             Err(e) => {
@@ -115,7 +138,7 @@ impl Display for MarketSessionPayload {
     /// - Optional settings (linebreak, valid_only, advanced_details)
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let filter_str: Vec<String> = self.filter.as_ref().map_or(vec![], |filters| {
-            filters.iter().map(|f| f.as_str().to_string()).collect()
+            filters.iter().map(|f| f.as_ref().to_string()).collect()
         });
 
         write!(
@@ -215,5 +238,85 @@ impl MarketSession {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tungstenite::Message;
+
+    #[test]
+    fn test_market_session_filter_as_ref() {
+        assert_eq!(MarketSessionFilter::TRADE.as_ref(), "trade");
+        assert_eq!(MarketSessionFilter::QUOTE.as_ref(), "quote");
+        assert_eq!(MarketSessionFilter::SUMMARY.as_ref(), "summary");
+        assert_eq!(MarketSessionFilter::TIMESALE.as_ref(), "timesale");
+        assert_eq!(MarketSessionFilter::TRADEX.as_ref(), "tradex");
+    }
+
+    #[test]
+    fn test_market_session_payload_new() {
+        let symbols = vec!["AAPL".to_string(), "TSLA".to_string()];
+        let session_id = "test-session-id".to_string();
+
+        let payload = MarketSessionPayload::builder()
+            .session_id(session_id.clone())
+            .symbols(symbols.clone())
+            .build();
+
+        assert_eq!(payload.symbols, symbols);
+        assert_eq!(payload.filter, Some(vec![MarketSessionFilter::QUOTE]));
+        assert_eq!(payload.session_id, session_id);
+        assert_eq!(payload.linebreak, Some(true));
+        assert_eq!(payload.valid_only, Some(false));
+        assert_eq!(payload.advanced_details, Some(false));
+    }
+
+    #[test]
+    fn test_market_session_payload_get_message() {
+        let payload = MarketSessionPayload {
+            symbols: vec!["AAPL".to_string()],
+            filter: Some(vec![MarketSessionFilter::TRADE]),
+            session_id: "test-session-id".to_string(),
+            linebreak: Some(true),
+            valid_only: Some(true),
+            advanced_details: Some(false),
+        };
+
+        let message_result = payload.get_message();
+        assert!(message_result.is_ok());
+
+        let message = message_result.unwrap();
+        if let Message::Text(text) = message {
+            assert!(text.contains("\"symbols\":[\"AAPL\"]"));
+            assert!(text.contains("\"filter\":[\"trade\"]"));
+            assert!(text.contains("\"sessionid\":\"test-session-id\""));
+            assert!(text.contains("\"linebreak\":true"));
+            assert!(text.contains("\"validOnly\":true"));
+            assert!(text.contains("\"advancedDetails\":false"));
+        } else {
+            panic!("Expected a text message");
+        }
+    }
+
+    #[test]
+    fn test_market_session_payload_display() {
+        let payload = MarketSessionPayload {
+            symbols: vec!["AAPL".to_string(), "MSFT".to_string()],
+            filter: Some(vec![MarketSessionFilter::TRADE, MarketSessionFilter::QUOTE]),
+            session_id: "display-session".to_string(),
+            linebreak: None,
+            valid_only: None,
+            advanced_details: Some(true),
+        };
+
+        let display_output = format!("{}", payload);
+        assert!(display_output.contains("symbols: [\"AAPL\", \"MSFT\"]"));
+        assert!(display_output.contains("filter: [\"trade\", \"quote\"]"));
+        assert!(display_output.contains("session_id: display-session"));
+        assert!(display_output.contains("linebreak: None"));
+        assert!(display_output.contains("valid_only: None"));
+        assert!(display_output.contains("advanced_details: true"));
     }
 }
