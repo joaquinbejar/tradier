@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use tracing::debug;
 
-use super::session_manager::SessionManager;
+use super::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
 
 /// Represents a Tradier API session, handling WebSocket streaming configuration for either
 /// account or market data.
@@ -70,7 +70,11 @@ impl<'a> Session<'a> {
     /// - Fails if a session already exists (singleton restriction).
     /// - Fails if the access token is missing or invalid.
     /// - Fails if the API request encounters network issues or the API returns an error status.
-    pub async fn new(
+    pub async fn new(session_type: SessionType, config: &Config) -> Result<Self> {
+        Self::with_session_manager(&GLOBAL_SESSION_MANAGER, session_type, config).await
+    }
+
+    async fn with_session_manager(
         session_manager: &'a SessionManager,
         session_type: SessionType,
         config: &Config,
@@ -209,7 +213,7 @@ mod tests_session {
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
         {
-            let session = Session::new(&session_manager, SessionType::Account, &config)
+            let session = Session::with_session_manager(&session_manager, SessionType::Account, &config)
                 .await
                 .unwrap();
 
@@ -247,7 +251,7 @@ mod tests_session {
 
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
-        let session = Session::new(&session_manager, SessionType::Market, &config)
+        let session = Session::with_session_manager(&session_manager, SessionType::Market, &config)
             .await
             .unwrap();
 
@@ -288,12 +292,12 @@ mod tests_session {
         let session_manager = SessionManager::default();
 
         // Create first session
-        let session1 = Session::new(&session_manager, SessionType::Market, &config)
+        let session1 = Session::with_session_manager(&session_manager, SessionType::Market, &config)
             .await
             .unwrap();
 
         // Attempt to create second session immediately (should fail)
-        let session2 = Session::new(&session_manager, SessionType::Market, &config).await;
+        let session2 = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(
             session2.is_err(),
             "Should not be able to create a second session"
@@ -331,7 +335,7 @@ mod tests_session {
 
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
-        let session = Session::new(&session_manager, SessionType::Market, &config)
+        let session = Session::with_session_manager(&session_manager, SessionType::Market, &config)
             .await
             .unwrap();
 
@@ -362,7 +366,7 @@ mod tests_session {
         };
 
         let session_manager = SessionManager::default();
-        let session_result = Session::new(&session_manager, SessionType::Market, &config).await;
+        let session_result = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         assert_matches!(session_result.unwrap_err(), Error::MissingAccessToken);
     }
@@ -380,7 +384,7 @@ mod tests_session {
 
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
-        let session_result = Session::new(&session_manager, SessionType::Market, &config).await;
+        let session_result = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         if let Error::CreateSessionError(_, status, body) = session_result.unwrap_err() {
             assert_eq!(status.as_u16(), 500);
@@ -404,7 +408,7 @@ mod tests_session {
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
 
-        let session_result = Session::new(&session_manager, SessionType::Market, &config).await;
+        let session_result = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         assert_matches!(session_result.unwrap_err(), Error::JsonParsingError(_));
 

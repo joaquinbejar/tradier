@@ -10,8 +10,6 @@ use tracing::{error, info};
 use tungstenite::Message;
 use url::Url;
 
-use super::global_session_manager;
-
 /// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
 ///
 /// Options include:
@@ -148,7 +146,7 @@ impl<'a> MarketSession<'a> {
     /// - `Err(Box<dyn Error>)`: If session creation fails.
     pub async fn new(config: &Config) -> Result<Self> {
         Ok(MarketSession(
-            Session::new(global_session_manager(), SessionType::Market, config).await?,
+            Session::new(SessionType::Market, config).await?,
         ))
     }
 

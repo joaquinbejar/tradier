@@ -62,8 +62,6 @@ use crate::config::Config;
 use crate::wssession::session::{Session, SessionType};
 use crate::Result;
 
-use super::global_session_manager;
-
 /// `AccountSession` is a wrapper around a `Session` specifically for account-level WebSocket interactions.
 ///
 /// This struct is designed to interact with Tradier's Account WebSocket API, which provides real-time
@@ -107,7 +105,7 @@ impl<'a> AccountSession<'a> {
     /// ```
     pub async fn new(config: &Config) -> Result<Self> {
         Ok(AccountSession(
-            Session::new(global_session_manager(), SessionType::Account, config).await?,
+            Session::new(SessionType::Account, config).await?,
         ))
     }
 

@@ -1,68 +1,60 @@
-use crate::{Error, Result};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::sync::LazyLock;
+
+use crate::Error;
+use crate::Result;
 
 /// Manages the existence of a single session within a system.
 ///
-/// `SessionManager` is an internal utility designed to enforce a single active session at any
-/// given time, ensuring that only one `Session` is accessible across the system. This is
-/// particularly useful when only one connection to the service, such as Tradier, should be active.
-/// Users of this library should interact with `Session`, which will handle session management
-/// through `SessionManager` internally.
+/// `SessionManager` is an internal utility that enforces a single active session
+/// at any given time. It is primarily used internally by higher-level abstractions like [`Session`]
+/// to coordinate access to WebSocket sessions or other shared resources.
 ///
-/// ⚠️ **Note:** Only one `SessionManager` instance should exist within the system at a time.
-/// For applications requiring a single active session manager globally, use `global_session_manager`.
-/// In single-threaded environments, a non-global instance may be used directly within the runtime.
+/// ### Key Features
+/// - **Thread-Safe**: Uses atomic operations to safely manage session state in multi-threaded environments.
+/// - **Lifecycle Management**: Ensures proper acquisition and release of session state.
+/// - **Internal Use Only**: This type is not exposed outside of the crate. Use [`Session`] or
+///   other public abstractions for interacting with session-related functionality.
+///
+/// ### Warning
+/// - Only one `SessionManager` instance should exist in the system. Use the
+///   [`GLOBAL_SESSION_MANAGER`] for global access in multi-threaded contexts.
+///
+/// ### Internal Use
+/// Developers working within this crate can use `SessionManager` to manage session lifecycle
+/// explicitly. For most external users, session management is handled transparently by [`Session`].
 ///
 /// # Examples
 ///
-/// ## Using `SessionManager` as a Global Singleton
+/// ## Internal Use: Acquiring and Releasing a Session
 ///
-/// In multi-threaded applications where only one active session should exist across all threads,
-/// `global_session_manager` provides a singleton `SessionManager` instance that can coordinate
-/// session access throughout the application. Typically, this is accessed indirectly through `Session`.
+/// The following example demonstrates how crate-internal code can acquire and release a session:
 ///
-/// ```rust
-/// use tradier::wssession::global_session_manager;
+/// ```ignore
+/// use tradier::wssession::session_manager::SessionManager;
 ///
-/// // Obtain the global `SessionManager` instance
-/// let manager = global_session_manager();
-///
-/// // Normally, `Session` interacts with `SessionManager` internally
-/// // to manage session state, so users do not need to directly invoke its methods.
-/// ```
-///
-/// ## Using `SessionManager` in a Single-Threaded Runtime
-///
-/// If the application runs in a single-threaded runtime (e.g., a Tokio `LocalSet`), it is safe
-/// to create a local instance of `SessionManager` rather than a global one. This approach is efficient
-/// as single-threaded execution ensures only one instance will access the session state.
-///
-/// ```rust
-/// use tradier::wssession::SessionManager;
-/// use tokio::task::LocalSet;
-///
-/// #[tokio::main]
-/// async fn main() {
-///     let local = LocalSet::new();
-///     let session_manager = SessionManager::default(); // Local instance
-///
-///     local.run_until(async move {
-///         // `Session` would manage session acquisition internally
-///     }).await;
-/// }
+/// let manager = SessionManager::default();
+/// assert!(manager.acquire_session().is_ok());
+/// assert!(manager.acquire_session().is_err()); // Second acquisition fails
+/// manager.release_session(); // Releases the session
+/// assert!(manager.acquire_session().is_ok()); // Session can be reacquired
 /// ```
 #[derive(Default, Debug)]
-pub struct SessionManager {
+pub(crate) struct SessionManager {
     session_exists: AtomicBool,
 }
 
 impl SessionManager {
-    // Internally acquires a session, enforcing a single active session.
-    //
-    // Returns `Ok(())` if the session was successfully acquired, or `Err(Error::SessionAlreadyExists)`
-    // if a session is already active. This method is used by `Session` to manage access to the session
-    // and is not intended to be called directly by end users.
+    /// Attempts to acquire a session, ensuring only one active session at a time.
+    ///
+    /// This method atomically sets the session state to "active". If a session is already
+    /// active, it returns an error indicating that the session cannot be acquired.
+    ///
+    /// This method is for internal use by higher-level abstractions like [`Session`].
+    ///
+    /// # Returns
+    /// - `Ok(())` if the session was successfully acquired.
+    /// - `Err(Error::SessionAlreadyExists)` if a session is already active.
     pub(crate) fn acquire_session(&self) -> Result<()> {
         if self
             .session_exists
@@ -74,10 +66,10 @@ impl SessionManager {
         Ok(())
     }
 
-    // Internally releases the session, allowing a new session to be acquired.
-    //
-    // This is called by `Session` to manage the session lifecycle, and users should not
-    // need to call this method directly.
+    /// Releases the active session, allowing a new session to be acquired.
+    ///
+    /// This method atomically sets the session state to "inactive". It is for internal
+    /// use by components like [`Session`] to manage session lifecycles.
     pub(crate) fn release_session(&self) {
         self.session_exists.store(false, Ordering::Release);
     }
@@ -86,30 +78,29 @@ impl SessionManager {
 impl Drop for SessionManager {
     /// Automatically releases the session when the `SessionManager` is dropped.
     ///
-    /// Ensures that any acquired session is released when a `SessionManager` instance goes
-    /// out of scope, cleaning up session state. This is part of the internal session lifecycle
-    /// management and is not intended for direct interaction by users.
+    /// This ensures that any active session is released when a `SessionManager` instance
+    /// goes out of scope. This method is primarily for internal use.
     fn drop(&mut self) {
         self.release_session();
     }
 }
 
-/// Provides a globally accessible singleton instance of `SessionManager`.
+/// A globally accessible, lazily-initialized singleton instance of `SessionManager`.
 ///
-/// This function ensures that only one instance of `SessionManager` exists across the
-/// application. Use this function for managing session state in multi-threaded environments,
-/// though users will typically interact with `Session`, which will handle the session
-/// management through `SessionManager` internally.
+/// The `GLOBAL_SESSION_MANAGER` provides a single, thread-safe instance of `SessionManager`
+/// for use within the crate. It is not directly accessible outside the crate due to its
+/// `pub(crate)` visibility.
 ///
-/// # Example
+/// Most session-related operations should use higher-level abstractions like [`Session`].
 ///
-/// ```rust
-/// use tradier::wssession::global_session_manager;
+/// ### Key Features
+/// - **Lazy Initialization**: The `SessionManager` is created only when first accessed.
+/// - **Thread-Safe**: Ensures safe, concurrent access across threads.
 ///
-/// let manager = global_session_manager();
-/// // Normally, users interact with `Session`, which coordinates with `SessionManager`.
-/// ```
-pub fn global_session_manager() -> &'static SessionManager {
-    static INSTANCE: OnceLock<SessionManager> = OnceLock::new();
-    INSTANCE.get_or_init(SessionManager::default)
-}
+/// ### Internal Usage
+///
+/// Direct access to `GLOBAL_SESSION_MANAGER` is intended only for crate-internal use. External
+/// consumers of the library should use public abstractions like [`Session`].
+pub(crate) static GLOBAL_SESSION_MANAGER: LazyLock<SessionManager> = LazyLock::new(|| {
+    SessionManager::default()
+});
