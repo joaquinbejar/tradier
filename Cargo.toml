@@ -29,6 +29,7 @@ include = [
 approx = "0.5.1"
 async-stream = "0.3.5"
 base64 = "0.22.1"
+bon = "3.0.1"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3.30"
 reqwest = { version = "0.12.7", features = ["json"] }
@@ -44,7 +45,6 @@ tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 tungstenite = { version = "0.24.0", features = ["native-tls"] }
 url = "2.5.2"
-
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"

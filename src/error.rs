@@ -39,6 +39,13 @@ pub enum Error {
     #[error("Failed to create {0} session. Status: {1}. Body: {2}")]
     CreateSessionError(SessionType, StatusCode, String),
 
+    /// Error if an unsupported MarketSessionFilter is encountered
+    ///
+    /// # Parameters
+    /// - `MarketSessionFilter`: Type of Event Filter that was encountered.
+    #[error("Unsupported MarketSessionFilter: {0}")]
+    UnsupportedMarketFilter(String),
+
     /// Error when JSON parsing fails while handling session response data.
     ///
     /// # Source
