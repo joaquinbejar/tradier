@@ -25,10 +25,6 @@ jobs:
       - name: Generate code coverage report.
         run:
           cargo tarpaulin
-          --all-features
-          --workspace
-          --timeout 120
-          --out Xml
       # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       # UPLOAD CODE COVERAGE REPORT TO CODECOV.IO
       # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -36,6 +32,8 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: true
+          directory: ./target/coverage/
+          files: ./cobertura.xml
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
