@@ -2,7 +2,7 @@
 
 # Default target
 .PHONY: all
-all: test fmt lint build
+all: test fmt lint build coverage
 
 # Build the project
 .PHONY: build

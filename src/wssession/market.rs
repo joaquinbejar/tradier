@@ -1,14 +1,16 @@
 use crate::config::Config;
-use crate::constants::TRADIER_WS_BASE_URL;
 use crate::wssession::session::{Session, SessionType};
 use crate::{Error, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use tokio_tungstenite::connect_async;
 use tracing::{error, info};
 use tungstenite::Message;
 use url::Url;
+
+use super::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
 
 /// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
 ///
@@ -75,12 +77,12 @@ impl From<MarketSessionFilter> for String {
 /// - `valid_only`: Optional boolean that, if set to `true`, inludes only ticks considered valid by exchanges.
 /// - `advanced_details`: Optional boolean for additional data in advanced detail format (applicable to timesale payloads only).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MarketSessionPayload {
-    pub symbols: Vec<String>,
+pub struct MarketSessionPayload<'a> {
+    pub symbols: Cow<'a, [String]>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub filter: Option<Vec<MarketSessionFilter>>,
+    pub filters: Option<Cow<'a, [MarketSessionFilter]>>,
     #[serde(rename = "sessionid")]
-    pub session_id: String,
+    pub session_id: Cow<'a, str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linebreak: Option<bool>,
     #[serde(rename = "validOnly", skip_serializing_if = "Option::is_none")]
@@ -90,7 +92,7 @@ pub struct MarketSessionPayload {
 }
 
 #[bon::bon]
-impl MarketSessionPayload {
+impl<'a> MarketSessionPayload<'a> {
     /// Constructs a new `MarketSessionPayload` with default filter settings.
     ///
     /// # Arguments
@@ -99,16 +101,34 @@ impl MarketSessionPayload {
     ///
     /// # Returns
     /// - `Self`: A new `MarketSessionPayload` instance with default filter and optional settings.
-    #[builder]
-    pub fn new(symbols: Vec<String>, session_id: String) -> Self {
+    #[builder(builder_type(vis = "pub"))]
+    fn new(
+        symbols: &'a [String],
+        filters: Option<&'a [MarketSessionFilter]>,
+        session_id: &'a str,
+        linebreak: Option<bool>,
+        valid_only: Option<bool>,
+        advanced_details: Option<bool>,
+    ) -> Self {
         MarketSessionPayload {
-            symbols,
-            filter: Some(vec![MarketSessionFilter::QUOTE]),
-            session_id,
-            linebreak: Some(true),
-            valid_only: Some(false),
-            advanced_details: Some(false),
+            symbols: Cow::Borrowed(symbols),
+            filters: filters.map(Cow::Borrowed),
+            session_id: Cow::Borrowed(session_id),
+            linebreak,
+            valid_only,
+            advanced_details,
         }
+    }
+
+    pub fn recommended(symbols: &'a [String], session_id: &'a str) -> Self {
+        Self::builder()
+            .symbols(symbols)
+            .filters(&[MarketSessionFilter::QUOTE])
+            .session_id(session_id)
+            .linebreak(true)
+            .valid_only(false)
+            .advanced_details(false)
+            .build()
     }
 
     /// Converts the payload to a WebSocket `Message` for sending.
@@ -117,18 +137,13 @@ impl MarketSessionPayload {
     /// - `Ok(Message)`: The WebSocket message if serialization is successful.
     /// - `Err(Box<dyn Error>)`: An error if serialization fails.
     pub fn get_message(&self) -> Result<Message> {
-        let result_payload_json = serde_json::to_string(self);
-        match result_payload_json {
-            Ok(value) => Ok(Message::Text(value.to_string())),
-            Err(e) => {
-                error!("Error parsing message");
-                Err(e.into())
-            }
-        }
+        serde_json::to_string(self)
+            .map(Message::Text)
+            .map_err(Into::into)
     }
 }
 
-impl Display for MarketSessionPayload {
+impl<'a> Display for MarketSessionPayload<'a> {
     /// Implements `Display` for `MarketSessionPayload` to show formatted details.
     ///
     /// Format includes:
@@ -137,7 +152,7 @@ impl Display for MarketSessionPayload {
     /// - Session ID
     /// - Optional settings (linebreak, valid_only, advanced_details)
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let filter_str: Vec<String> = self.filter.as_ref().map_or(vec![], |filters| {
+        let filter_str: Vec<String> = self.filters.as_ref().map_or(vec![], |filters| {
             filters.iter().map(|f| f.as_ref().to_string()).collect()
         });
 
@@ -168,8 +183,15 @@ impl<'a> MarketSession<'a> {
     /// - `Ok(MarketSession)`: A `MarketSession` instance if the session was created successfully.
     /// - `Err(Box<dyn Error>)`: If session creation fails.
     pub async fn new(config: &Config) -> Result<Self> {
+        Self::new_with_session_manager(config, &GLOBAL_SESSION_MANAGER).await
+    }
+
+    async fn new_with_session_manager(
+        config: &Config,
+        session_manager: &'a SessionManager,
+    ) -> Result<Self> {
         Ok(MarketSession(
-            Session::new(SessionType::Market, config).await?,
+            Session::new_with_session_manager(session_manager, SessionType::Market, config).await?,
         ))
     }
 
@@ -203,8 +225,8 @@ impl<'a> MarketSession<'a> {
     /// - Sends the specified `MarketSessionPayload`.
     /// - Listens for incoming messages and logs text or binary data.
     /// - Terminates on connection close or error.
-    pub async fn ws_stream(&self, payload: MarketSessionPayload) -> Result<()> {
-        let uri = &format!("{}/v1/markets/events", TRADIER_WS_BASE_URL);
+    pub async fn ws_stream(&self, payload: MarketSessionPayload<'a>) -> Result<()> {
+        let uri = &self.0.stream_info.url;
         let url = Url::parse(uri)?;
 
         info!("Connecting to: {}", uri);
@@ -242,8 +264,13 @@ impl<'a> MarketSession<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        utils::tests::{create_test_config, mock_websocket_server},
+        wssession::session_manager::SessionManager,
+    };
+
     use super::*;
-    use tungstenite::Message;
+    use mockito::Server;
 
     #[test]
     fn test_market_session_filter_as_ref() {
@@ -287,17 +314,17 @@ mod tests {
     }
 
     #[test]
-    fn test_market_session_payload_new() {
+    fn test_market_session_payload_recommended() {
         let symbols = vec!["AAPL".to_string(), "TSLA".to_string()];
         let session_id = "test-session-id".to_string();
 
-        let payload = MarketSessionPayload::builder()
-            .session_id(session_id.clone())
-            .symbols(symbols.clone())
-            .build();
+        let payload = MarketSessionPayload::recommended(&symbols, &session_id);
 
         assert_eq!(payload.symbols, symbols);
-        assert_eq!(payload.filter, Some(vec![MarketSessionFilter::QUOTE]));
+        assert_eq!(
+            payload.filters.as_deref(),
+            Some(&[MarketSessionFilter::QUOTE][..])
+        );
         assert_eq!(payload.session_id, session_id);
         assert_eq!(payload.linebreak, Some(true));
         assert_eq!(payload.valid_only, Some(false));
@@ -305,42 +332,49 @@ mod tests {
     }
 
     #[test]
-    fn test_market_session_payload_get_message() {
-        let payload = MarketSessionPayload {
-            symbols: vec!["AAPL".to_string()],
-            filter: Some(vec![MarketSessionFilter::TRADE]),
-            session_id: "test-session-id".to_string(),
-            linebreak: Some(true),
-            valid_only: Some(true),
-            advanced_details: Some(false),
-        };
+    fn test_market_session_payload_get_message_full_payload() {
+        let symbols = ["AAPL".to_string(), "GOOGL".to_string()];
+        let filters = vec![MarketSessionFilter::TRADE, MarketSessionFilter::SUMMARY];
+        let session_id = "session-12345";
+
+        let payload = MarketSessionPayload::builder()
+            .symbols(&symbols)
+            .filters(&filters)
+            .session_id(session_id)
+            .linebreak(true)
+            .valid_only(false)
+            .advanced_details(true)
+            .build();
 
         let message_result = payload.get_message();
-        assert!(message_result.is_ok());
+        assert!(
+            message_result.is_ok(),
+            "Expected message creation to succeed"
+        );
 
         let message = message_result.unwrap();
-        if let Message::Text(text) = message {
-            assert!(text.contains("\"symbols\":[\"AAPL\"]"));
-            assert!(text.contains("\"filter\":[\"trade\"]"));
-            assert!(text.contains("\"sessionid\":\"test-session-id\""));
-            assert!(text.contains("\"linebreak\":true"));
-            assert!(text.contains("\"validOnly\":true"));
-            assert!(text.contains("\"advancedDetails\":false"));
+
+        if let tungstenite::Message::Text(serialized) = message {
+            assert!(serialized.contains("\"symbols\":[\"AAPL\",\"GOOGL\"]"));
+            assert!(serialized.contains("\"filters\":[\"trade\",\"summary\"]"));
+            assert!(serialized.contains("\"sessionid\":\"session-12345\""));
+            assert!(serialized.contains("\"linebreak\":true"));
+            assert!(serialized.contains("\"validOnly\":false"));
+            assert!(serialized.contains("\"advancedDetails\":true"));
         } else {
-            panic!("Expected a text message");
+            panic!("Expected a text WebSocket message, got {:?}", message);
         }
     }
 
     #[test]
     fn test_market_session_payload_display() {
-        let payload = MarketSessionPayload {
-            symbols: vec!["AAPL".to_string(), "MSFT".to_string()],
-            filter: Some(vec![MarketSessionFilter::TRADE, MarketSessionFilter::QUOTE]),
-            session_id: "display-session".to_string(),
-            linebreak: None,
-            valid_only: None,
-            advanced_details: Some(true),
-        };
+        let symbols = ["AAPL".to_string(), "MSFT".to_string()];
+        let payload = MarketSessionPayload::builder()
+            .symbols(&symbols)
+            .filters(&[MarketSessionFilter::TRADE, MarketSessionFilter::QUOTE])
+            .session_id("display-session")
+            .advanced_details(true)
+            .build();
 
         let display_output = format!("{}", payload);
         assert!(display_output.contains("symbols: [\"AAPL\", \"MSFT\"]"));
@@ -349,5 +383,143 @@ mod tests {
         assert!(display_output.contains("linebreak: None"));
         assert!(display_output.contains("valid_only: None"));
         assert!(display_output.contains("advanced_details: true"));
+    }
+
+    #[tokio::test]
+    async fn test_market_session_creation() {
+        let mut server = Server::new_async().await;
+        let json_data = r#"
+        {
+            "stream": {
+                "url": "https://stream.tradier.com/v1/markets/events",
+                "sessionid": "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+            }
+        }
+        "#;
+        let mock = server
+            .mock("POST", "/v1/markets/events/session")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(json_data)
+            .create_async()
+            .await;
+
+        let config = create_test_config().server_url(&server.url()).finish();
+        let session_manager = SessionManager::default();
+        let session = MarketSession::new_with_session_manager(&config, &session_manager)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            session.get_websocket_url(),
+            "https://stream.tradier.com/v1/markets/events"
+        );
+        assert_eq!(
+            session.get_session_id(),
+            "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+        );
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_stream_some_data() {
+        let expected_session_id = "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3";
+        let expected_ws_host = "127.0.0.1";
+        let expected_ws_port = 9999u16;
+        let expected_ws_event_path = "/v1/markets/events";
+        let expected_ws_url = format!(
+            "ws://{}:{}/{}",
+            expected_ws_host, expected_ws_port, expected_ws_event_path
+        );
+        let expected_symbols = ["AAPL".to_owned(), "C".to_owned()];
+        let expected_ws_request = MarketSessionPayload::builder()
+            .session_id(expected_session_id)
+            .symbols(&expected_symbols)
+            .build();
+        let mut server = Server::new_async().await;
+        let json_data = format!(
+            r#"
+        {{
+            "stream": {{
+                "url": "{}",
+                "sessionid": "{}"
+            }}
+        }}
+        "#,
+            expected_ws_url, expected_session_id
+        );
+
+        let expected_event = r#"
+        {{
+            "type": "quote",
+            "symbol": "C",
+            "bid": 281.84,
+            "bidsz": 60,
+            "bidexch": "M",
+            "biddate": "1557757189000",
+            "ask": 281.85,
+            "asksz": 6,
+            "askexch": "Z",
+            "askdate": "1557757190000"
+        }}"#;
+        let _mock = server
+            .mock("POST", "/v1/markets/events/session")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(json_data)
+            .create_async()
+            .await;
+
+        let config = create_test_config()
+            .server_url(&server.url())
+            .web_socket_url(&format!("ws://{}:{}", expected_ws_host, expected_ws_port))
+            .web_socket_path(expected_ws_event_path)
+            .finish();
+        let session_manager = SessionManager::default();
+        mock_websocket_server()
+            .address(expected_ws_host, expected_ws_port)
+            .expected_request(expected_ws_request)
+            .expected_response(expected_event)
+            .create()
+            .await;
+
+        let market_session =
+            MarketSession::new_with_session_manager(&config, &session_manager).await;
+        assert!(market_session.is_ok());
+        let market_session = market_session.unwrap();
+        let result = market_session
+            .ws_stream(
+                MarketSessionPayload::builder()
+                    .session_id(market_session.get_session_id())
+                    .symbols(&expected_symbols)
+                    .build(),
+            )
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_market_session_filter_invalid_input() {
+        let invalid_filters = vec!["invalid", "unknown", "random"];
+
+        for invalid_filter in invalid_filters {
+            let result = MarketSessionFilter::try_from(invalid_filter);
+            assert!(
+                result.is_err(),
+                "Expected error for invalid filter '{}', but got {:?}",
+                invalid_filter,
+                result
+            );
+
+            if let Err(Error::UnsupportedMarketFilter(filter)) = result {
+                assert_eq!(filter, invalid_filter.to_owned());
+            } else {
+                panic!(
+                    "Expected UnsupportedMarketFilter error, but got {:?}",
+                    result
+                );
+            }
+        }
     }
 }

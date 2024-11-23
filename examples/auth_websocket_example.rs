@@ -49,14 +49,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     "Market streaming wssession created with id: {}",
                     market_session.get_session_id()
                 );
-                let payload = MarketSessionPayload {
-                    symbols: vec!["AAPL".to_string(), "MSFT".to_string()],
-                    filter: Some(vec![MarketSessionFilter::QUOTE, MarketSessionFilter::TRADE]),
-                    session_id: market_session.get_session_id().to_string(),
-                    linebreak: Some(true),
-                    valid_only: Some(true),
-                    advanced_details: None,
-                };
+                let symbols = ["AAPL".to_string(), "MSFT".to_string()];
+                let payload = MarketSessionPayload::builder()
+                    .symbols(&symbols)
+                    .filters(&[MarketSessionFilter::QUOTE, MarketSessionFilter::TRADE])
+                    .session_id(market_session.get_session_id())
+                    .linebreak(true)
+                    .valid_only(true)
+                    .build();
                 if let Err(e) = market_session.ws_stream(payload).await {
                     error!("Streaming error: {}. Reconnecting...", e);
                 }

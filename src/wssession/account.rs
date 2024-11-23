@@ -62,6 +62,10 @@ use crate::config::Config;
 use crate::wssession::session::{Session, SessionType};
 use crate::Result;
 
+use self::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
+
+use super::session_manager;
+
 /// `AccountSession` is a wrapper around a `Session` specifically for account-level WebSocket interactions.
 ///
 /// This struct is designed to interact with Tradier's Account WebSocket API, which provides real-time
@@ -104,8 +108,17 @@ impl<'a> AccountSession<'a> {
     /// }
     /// ```
     pub async fn new(config: &Config) -> Result<Self> {
+        Self::new_with_session_manager(config, &GLOBAL_SESSION_MANAGER).await
+    }
+
+    #[allow(dead_code)]
+    async fn new_with_session_manager(
+        config: &Config,
+        session_manager: &'a SessionManager,
+    ) -> Result<Self> {
         Ok(AccountSession(
-            Session::new(SessionType::Account, config).await?,
+            Session::new_with_session_manager(session_manager, SessionType::Account, config)
+                .await?,
         ))
     }
 
@@ -164,5 +177,62 @@ impl<'a> AccountSession<'a> {
     /// ```
     pub fn get_websocket_url(&self) -> &str {
         self.0.get_websocket_url()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mockito::Server;
+
+    use super::*;
+    use crate::{utils::tests::create_test_config, wssession::session_manager::SessionManager};
+
+    #[tokio::test]
+    async fn test_invalid_config() {
+        let session_manager = SessionManager::default();
+        let config = Config::new();
+
+        let account_session =
+            AccountSession::new_with_session_manager(&config, &session_manager).await;
+
+        assert!(account_session.is_err())
+    }
+
+    #[tokio::test]
+    async fn test_account_session_creation() {
+        let mut server = Server::new_async().await;
+        let json_data = r#"
+            {
+                "stream": {
+                    "url": "wss://ws.tradier.com/v1/accounts/events",
+                    "sessionid": "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+                }
+            }
+            "#;
+        let mock = server
+            .mock("POST", "/v1/accounts/events/session")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(json_data)
+            .create_async()
+            .await;
+
+        let config = create_test_config().server_url(&server.url()).finish();
+        let session_manager = SessionManager::default();
+        {
+            let session = AccountSession::new_with_session_manager(&config, &session_manager)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                session.get_websocket_url(),
+                "wss://ws.tradier.com/v1/accounts/events"
+            );
+            assert_eq!(
+                session.get_session_id(),
+                "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+            );
+        }
+        mock.assert_async().await;
     }
 }

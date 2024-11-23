@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use tracing::debug;
 
-use super::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
+use super::session_manager::SessionManager;
 
 /// Represents a Tradier API session, handling WebSocket streaming configuration for either
 /// account or market data.
@@ -57,24 +57,72 @@ impl Display for SessionType {
 }
 
 impl<'a> Session<'a> {
-    /// Creates a new `Session` instance based on the specified session type and configuration.
+    /// Creates a new `Session` instance using the specified session type and configuration,
+    /// managed by the provided `SessionManager`.
     ///
-    /// - **session_type**: Specifies the type of session, either `SessionType::Market` or `SessionType::Account`.
-    /// - **config**: Reference to `Config`, providing required details like base URLs and access tokens.
+    /// This method handles the creation of a Tradier WebSocket session for either market or
+    /// account events. It ensures that only one session is active at any given time by leveraging
+    /// the `SessionManager` for singleton enforcement.
+    ///
+    /// # Parameters
+    /// - **`session_manager`**: A reference to the `SessionManager` that manages session state and ensures
+    ///   only one active session exists at a time.
+    /// - **`session_type`**: Specifies the type of session to create:
+    ///   - `SessionType::Market`: For streaming market data.
+    ///   - `SessionType::Account`: For streaming account-related events.
+    /// - **`config`**: A reference to the `Config` object, which provides necessary information like
+    ///   the API base URL and access tokens.
     ///
     /// # Returns
-    /// - `Ok(Session)`: A new `Session` if successful.
-    /// - `Err(Box<dyn Error>)`: If session creation fails due to an existing session, missing token, or API error.
+    /// - **`Ok(Session)`**: A new `Session` instance if the session is created successfully.
+    /// - **`Err(Error)`**: An error if session creation fails.
+    ///
+    /// # Behavior
+    /// - Acquires a lock from the `SessionManager` to ensure a singleton session.
+    /// - Constructs the appropriate URL based on the session type.
+    /// - Sends a POST request to the Tradier API to initialize the session.
+    /// - Parses the response to extract the session stream information.
     ///
     /// # Errors
-    /// - Fails if a session already exists (singleton restriction).
-    /// - Fails if the access token is missing or invalid.
-    /// - Fails if the API request encounters network issues or the API returns an error status.
-    pub async fn new(session_type: SessionType, config: &Config) -> Result<Self> {
-        Self::with_session_manager(&GLOBAL_SESSION_MANAGER, session_type, config).await
-    }
-
-    async fn with_session_manager(
+    /// This method will return an error if:
+    /// - **Singleton Restriction**: Another session is already active (`SessionManager` prevents new sessions).
+    /// - **Missing Access Token**: The `access_token` field in the provided `Config` is `None`.
+    /// - **Network or API Issues**: The HTTP request to create the session fails due to:
+    ///   - Network errors.
+    ///   - Server errors (non-2xx HTTP responses).
+    /// - **Malformed Response**: The API returns an invalid or unexpected response format.
+    ///
+    /// # Example for developers
+    /// ```ignore
+    /// use tradier::config::Config;
+    /// use tradier::wssession::session::{Session, SessionManager, SessionType};
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let config = Config::new();
+    ///     let session_manager = SessionManager::new();
+    ///
+    ///     match Session::new_with_session_manager(&session_manager, SessionType::Account, &config).await {
+    ///         Ok(session) => {
+    ///             println!("Session created successfully!");
+    ///         }
+    ///         Err(e) => {
+    ///             eprintln!("Failed to create session: {:?}", e);
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// # Debugging Information
+    /// The method logs various debug messages, including:
+    /// - The URL used to request the session.
+    /// - Response headers, status code, and body.
+    ///
+    /// This can help diagnose issues with API connectivity or authentication.
+    ///
+    /// # Note
+    /// The session must be explicitly released by the `SessionManager` when no longer needed to allow
+    /// creation of new sessions.
+    pub(crate) async fn new_with_session_manager(
         session_manager: &'a SessionManager,
         session_type: SessionType,
         config: &Config,
@@ -161,35 +209,12 @@ impl<'a> Session<'a> {
 #[cfg(test)]
 mod tests_session {
     use super::*;
-    use crate::config::{Credentials, RestApiConfig, StreamingConfig};
+    use crate::{
+        config::{Credentials, RestApiConfig, StreamingConfig},
+        utils::tests::create_test_config,
+    };
     use mockito::Server;
     use pretty_assertions::{assert_eq, assert_matches};
-
-    // Helper function to create a test config
-    fn create_test_config(server_url: &str, is_sandbox: bool) -> Config {
-        Config {
-            credentials: Credentials {
-                client_id: "test_id".to_string(),
-                client_secret: "test_secret".to_string(),
-                access_token: Some("test_token".to_string()),
-                refresh_token: None,
-            },
-            rest_api: RestApiConfig {
-                base_url: if is_sandbox {
-                    "https://sandbox.tradier.com".to_string()
-                } else {
-                    server_url.to_string()
-                },
-                timeout: 30,
-            },
-            streaming: StreamingConfig {
-                http_base_url: "".to_string(),
-                ws_base_url: "".to_string(),
-                events_path: "".to_string(),
-                reconnect_interval: 5,
-            },
-        }
-    }
 
     #[tokio::test]
     async fn test_account_session_creation() {
@@ -210,11 +235,11 @@ mod tests_session {
             .create_async()
             .await;
 
-        let config = create_test_config(&server.url(), false);
+        let config = create_test_config().server_url(&server.url()).finish();
         let session_manager = SessionManager::default();
         {
             let session =
-                Session::with_session_manager(&session_manager, SessionType::Account, &config)
+                Session::new_with_session_manager(&session_manager, SessionType::Account, &config)
                     .await
                     .unwrap();
 
@@ -250,11 +275,12 @@ mod tests_session {
             .create_async()
             .await;
 
-        let config = create_test_config(&server.url(), false);
+        let config = create_test_config().server_url(&server.url()).finish();
         let session_manager = SessionManager::default();
-        let session = Session::with_session_manager(&session_manager, SessionType::Market, &config)
-            .await
-            .unwrap();
+        let session =
+            Session::new_with_session_manager(&session_manager, SessionType::Market, &config)
+                .await
+                .unwrap();
 
         assert_eq!(session.session_type, SessionType::Market);
         assert_eq!(
@@ -289,18 +315,18 @@ mod tests_session {
             .create_async()
             .await;
 
-        let config = create_test_config(&server.url(), false);
+        let config = create_test_config().server_url(&server.url()).finish();
         let session_manager = SessionManager::default();
 
         // Create first session
         let session1 =
-            Session::with_session_manager(&session_manager, SessionType::Market, &config)
+            Session::new_with_session_manager(&session_manager, SessionType::Market, &config)
                 .await
                 .unwrap();
 
         // Attempt to create second session immediately (should fail)
         let session2 =
-            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+            Session::new_with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(
             session2.is_err(),
             "Should not be able to create a second session"
@@ -336,11 +362,12 @@ mod tests_session {
             .create_async()
             .await;
 
-        let config = create_test_config(&server.url(), false);
+        let config = create_test_config().server_url(&server.url()).finish();
         let session_manager = SessionManager::default();
-        let session = Session::with_session_manager(&session_manager, SessionType::Market, &config)
-            .await
-            .unwrap();
+        let session =
+            Session::new_with_session_manager(&session_manager, SessionType::Market, &config)
+                .await
+                .unwrap();
 
         assert_eq!(session.session_type, SessionType::Market);
         mock.assert_async().await;
@@ -370,7 +397,7 @@ mod tests_session {
 
         let session_manager = SessionManager::default();
         let session_result =
-            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+            Session::new_with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         assert_matches!(session_result.unwrap_err(), Error::MissingAccessToken);
     }
@@ -386,10 +413,10 @@ mod tests_session {
             .create_async()
             .await;
 
-        let config = create_test_config(&server.url(), false);
+        let config = create_test_config().server_url(&server.url()).finish();
         let session_manager = SessionManager::default();
         let session_result =
-            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+            Session::new_with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         if let Error::CreateSessionError(_, status, body) = session_result.unwrap_err() {
             assert_eq!(status.as_u16(), 500);
@@ -410,11 +437,11 @@ mod tests_session {
             .create_async()
             .await;
 
-        let config = create_test_config(&server.url(), false);
+        let config = create_test_config().server_url(&server.url()).finish();
         let session_manager = SessionManager::default();
 
         let session_result =
-            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+            Session::new_with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         assert_matches!(session_result.unwrap_err(), Error::JsonParsingError(_));
 
