@@ -101,6 +101,5 @@ impl Drop for SessionManager {
 ///
 /// Direct access to `GLOBAL_SESSION_MANAGER` is intended only for crate-internal use. External
 /// consumers of the library should use public abstractions like [`Session`].
-pub(crate) static GLOBAL_SESSION_MANAGER: LazyLock<SessionManager> = LazyLock::new(|| {
-    SessionManager::default()
-});
+pub(crate) static GLOBAL_SESSION_MANAGER: LazyLock<SessionManager> =
+    LazyLock::new(SessionManager::default);

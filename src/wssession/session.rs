@@ -213,9 +213,10 @@ mod tests_session {
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
         {
-            let session = Session::with_session_manager(&session_manager, SessionType::Account, &config)
-                .await
-                .unwrap();
+            let session =
+                Session::with_session_manager(&session_manager, SessionType::Account, &config)
+                    .await
+                    .unwrap();
 
             assert_eq!(session.session_type, SessionType::Account);
             assert_eq!(
@@ -292,12 +293,14 @@ mod tests_session {
         let session_manager = SessionManager::default();
 
         // Create first session
-        let session1 = Session::with_session_manager(&session_manager, SessionType::Market, &config)
-            .await
-            .unwrap();
+        let session1 =
+            Session::with_session_manager(&session_manager, SessionType::Market, &config)
+                .await
+                .unwrap();
 
         // Attempt to create second session immediately (should fail)
-        let session2 = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+        let session2 =
+            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(
             session2.is_err(),
             "Should not be able to create a second session"
@@ -366,7 +369,8 @@ mod tests_session {
         };
 
         let session_manager = SessionManager::default();
-        let session_result = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+        let session_result =
+            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         assert_matches!(session_result.unwrap_err(), Error::MissingAccessToken);
     }
@@ -384,7 +388,8 @@ mod tests_session {
 
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
-        let session_result = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+        let session_result =
+            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         if let Error::CreateSessionError(_, status, body) = session_result.unwrap_err() {
             assert_eq!(status.as_u16(), 500);
@@ -408,7 +413,8 @@ mod tests_session {
         let config = create_test_config(&server.url(), false);
         let session_manager = SessionManager::default();
 
-        let session_result = Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
+        let session_result =
+            Session::with_session_manager(&session_manager, SessionType::Market, &config).await;
         assert!(session_result.is_err());
         assert_matches!(session_result.unwrap_err(), Error::JsonParsingError(_));
 
