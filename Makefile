@@ -2,7 +2,7 @@
 
 # Default target
 .PHONY: all
-all: test fmt lint build
+all: test fmt lint build coverage
 
 # Build the project
 .PHONY: build
@@ -72,10 +72,4 @@ publish:
 coverage:
 	cargo install cargo-tarpaulin
 	mkdir -p target/coverage
-	cargo tarpaulin --all-features --workspace --timeout 120 --out Xml --output-dir ./target/coverage
-
-.PHONY: coverage-html
-coverage-html:
-	cargo install cargo-tarpaulin
-	mkdir -p target/coverage
-	cargo tarpaulin --all-features --workspace --timeout 120 --out Html --output-dir ./target/coverage
+	cargo tarpaulin

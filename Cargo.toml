@@ -27,23 +27,24 @@ include = [
 
 [dependencies]
 approx = "0.5.1"
+async-stream = "0.3.5"
+base64 = "0.22.1"
+bon = "3.0.1"
+chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3.30"
+reqwest = { version = "0.12.7", features = ["json"] }
 rust_decimal = "1.36.0"
 rust_decimal_macros = "1.36.0"
-tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
-reqwest = { version = "0.12.7", features = ["json"] }
-tokio = { version = "1.40.0", features = ["full"] }
 serde = { version = "1.0.210", features = ["derive"] }
-base64 = "0.22.1"
-chrono = { version = "0.4", features = ["serde"] }
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
-url = "2.5.2"
-tungstenite = { version = "0.24.0", features = ["native-tls"] }
 serde_json = "1.0"
 serial_test = "3.1.1"
-async-stream = "0.3.5"
-futures-util = "0.3.30"
-bon = "3.0.1"
+thiserror = "1.0.65"
+tokio = { version = "1.40.0", features = ["full"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+tungstenite = { version = "0.24.0", features = ["native-tls"] }
+url = "2.5.2"
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
@@ -54,6 +55,7 @@ lazy_static = "1.5.0"
 once_cell = "1.17.1"
 serde_json = "1.0.96"
 mockito = "1.5.0"
+pretty_assertions = {version = "1.4.1", features = [ "unstable" ]}
 
 
 [[test]]

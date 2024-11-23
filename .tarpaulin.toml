@@ -1,0 +1,8 @@
+[coverage]
+exclude-files = [ "src/error.rs" ]
+workspace = true
+out = ["Xml", "Html"]
+all-features = true
+output-dir = "target/coverage/"
+timeout = "120s"
+fail-under = 80
