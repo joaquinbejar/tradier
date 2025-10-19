@@ -76,6 +76,7 @@ pub(crate) fn create_test_config(
 }
 
 #[bon::builder(finish_fn = create)]
+#[cfg(test)]
 pub(crate) async fn mock_websocket_server(
     #[builder(with = |a: &'static str, p: u16| (a, p) )] address: (&str, u16),
     expected_request: MarketSessionPayload<'_>,

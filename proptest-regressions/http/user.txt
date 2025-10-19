@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 616d1c00b11da5d36fc4903c80a362a524e99e72262eb308a5654e814c3a8e5d # shrinks to response = GetUserProfileResponseWire { profile: UserProfileWire { id: "", name: "", account: [AccountWire { account_number: "", classification: Individual, date_created: DateTimeUtcWire(1970-01-01T00:00:00Z), day_trader: false, option_level: 0, status: Active, account_type: Cash, last_update_date: DateTimeUtcWire(1970-01-01T00:00:00Z) }] } }

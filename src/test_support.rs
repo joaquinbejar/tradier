@@ -1,8 +1,4 @@
-use std::{
-    env,
-    future::Future,
-    sync::{Arc, Mutex, OnceLock},
-};
+use std::{env, sync::Mutex};
 
 use chrono::{DateTime, Utc};
 use proptest::prelude::Strategy;

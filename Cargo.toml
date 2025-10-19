@@ -28,9 +28,11 @@ include = [
 [dependencies]
 approx = "0.5.1"
 async-stream = "0.3.5"
+async-trait = "0.1.89"
 base64 = "0.22.1"
 bon = "3.0.1"
 chrono = { version = "0.4", features = ["serde"] }
+console-subscriber = "0.4.1"
 futures-util = "0.3.30"
 reqwest = { version = "0.12.7", features = ["json"] }
 rust_decimal = "1.36.0"
@@ -47,7 +49,8 @@ tungstenite = { version = "0.24.0", features = ["native-tls"] }
 url = "2.5.2"
 
 [dev-dependencies]
-proptest = { version = "1.8.0", features = [ "proptest-macro" ] }
+httpmock = "0.8.2"
+proptest = { version = "1.8.0", features = [  ] }
 proptest-derive = "0.6.0"
 jsonschema = "0.33.0"
 assert-json-diff = "2.0.2"

@@ -61,6 +61,10 @@ pub enum Error {
     #[error("Session already exists")]
     SessionAlreadyExists,
 
+    /// Represents an IO Error
+    #[error("IO Error: {0}")]
+    IoError(#[from] std::io::Error),
+
     /// Represents errors during network requests to the Tradier API.
     ///
     /// # Source
@@ -73,7 +77,7 @@ pub enum Error {
     /// # Source
     /// Wraps `tungstenite::Error` for more detailed WebSocket connection error reporting.
     #[error("WebSocket error: {0}")]
-    WebSocketError(#[from] tungstenite::Error),
+    WebSocketError(#[from] Box<tungstenite::Error>),
 
     /// Represents any unexpected error, including a custom message for additional context.
     ///
