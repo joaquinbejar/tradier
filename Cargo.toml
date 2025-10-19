@@ -47,6 +47,9 @@ tungstenite = { version = "0.24.0", features = ["native-tls"] }
 url = "2.5.2"
 
 [dev-dependencies]
+proptest = { version = "1.8.0", features = [ "proptest-macro" ] }
+proptest-derive = "0.6.0"
+jsonschema = "0.33.0"
 assert-json-diff = "2.0.2"
 mockall = "0.13.0"
 tokio-test = "0.4.4"
