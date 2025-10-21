@@ -1,0 +1,135 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-user-profile.json",
+    "title": "GetUserProfile response",
+    "type": "object",
+    "required": [
+        "profile"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "profile": {
+            "$ref": "#/$defs/Profile"
+        }
+    },
+    "$defs": {
+        "Profile": {
+            "type": "object",
+            "required": [
+                "id",
+                "name",
+                "account"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique ID assigned to the user."
+                },
+                "name": {
+                    "type": "string",
+                    "description": "The user's full name."
+                },
+                "account": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Account"
+                    }
+                }
+            }
+        },
+        "Account": {
+            "type": "object",
+            "required": [
+                "account_number",
+                "classification",
+                "date_created",
+                "day_trader",
+                "option_level",
+                "status",
+                "type",
+                "last_update_date"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "account_number": {
+                    "type": "string",
+                    "description": "The account number"
+                },
+                "classification": {
+                    "$ref": "#/$defs/AccountClassification"
+                },
+                "date_created": {
+                    "$ref": "#/$defs/DateTimeString"
+                },
+                "day_trader": {
+                    "type": "boolean",
+                    "description": "Whether the account is marked as a day trader."
+                },
+                "option_level": {
+                    "type": "integer",
+                    "description": "The option level approval for the account (1-4)."
+                },
+                "status": {
+                    "$ref": "#/$defs/AccountStatus"
+                },
+                "type": {
+                    "$ref": "#/$defs/AccountType"
+                },
+                "last_update_date": {
+                    "$ref": "#/$defs/DateTimeString"
+                }
+            }
+        },
+        "AccountClassification": {
+            "type": "string",
+            "enum": [
+                "individual",
+                "corporate",
+                "joint",
+                "ira",
+                "rothira",
+                "entity"
+            ]
+        },
+        "AccountStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "closed"
+            ]
+        },
+        "AccountType": {
+            "type": "string",
+            "enum": [
+                "cash",
+                "margin"
+            ]
+        },
+        "DateTimeString": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 timestamp (e.g., 2015-01-01T15:25:47.000Z)"
+        }
+    },
+    "examples": [
+        {
+            "profile": {
+                "id": "id-123456",
+                "name": "John Doe",
+                "account": [
+                    {
+                        "account_number": "VA000001",
+                        "classification": "individual",
+                        "date_created": "2015-01-01T15:25:47.000Z",
+                        "day_trader": true,
+                        "option_level": 4,
+                        "status": "active",
+                        "type": "margin",
+                        "last_update_date": "2015-01-01T15:25:47.000Z"
+                    }
+                ]
+            }
+        }
+    ]
+}

@@ -230,11 +230,11 @@ impl<'a> MarketSession<'a> {
         let url = Url::parse(uri)?;
 
         info!("Connecting to: {}", uri);
-        let (ws_stream, _) = connect_async(url.as_str()).await?;
+        let (ws_stream, _) = connect_async(url.as_str()).await.map_err(Box::new)?;
         let (mut write, mut read) = ws_stream.split();
 
         let message = payload.get_message()?;
-        write.send(message).await?;
+        write.send(message).await.map_err(Box::new)?;
         info!("Sent payload: {}", payload);
 
         while let Some(message) = read.next().await {

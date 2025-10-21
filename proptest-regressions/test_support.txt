@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 578f4d09078d8869f27bfadb3fd4c7cbe300cd1ea33cf03e22badd8784db0e34 # shrinks to wire_object = GetUserProfileResponseWire { profile: UserProfileWire { id: "", name: "", account: [] } }

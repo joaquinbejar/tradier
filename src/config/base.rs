@@ -207,44 +207,16 @@ impl Config {
 #[cfg(test)]
 mod tests_config {
     use super::*;
-    use std::sync::Mutex;
+    use crate::test_support::with_env_vars;
     use std::sync::Once;
 
     static INIT: Once = Once::new();
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     /// Initializes global test setup.
     fn setup() {
         INIT.call_once(|| {
             // Initialize any global test setup here
         });
-    }
-
-    /// Temporarily sets environment variables for a test and restores them after.
-    ///
-    /// Parameters:
-    /// - `vars`: A vector of (key, value) pairs to set as environment variables.
-    /// - `test`: A closure to execute with the environment variables set.
-    fn with_env_vars<F>(vars: Vec<(&str, &str)>, test: F)
-    where
-        F: FnOnce(),
-    {
-        let _lock = ENV_MUTEX.lock().unwrap();
-        let mut old_vars = Vec::new();
-
-        for (key, value) in vars {
-            old_vars.push((key, env::var(key).ok()));
-            env::set_var(key, value);
-        }
-
-        test();
-
-        for (key, value) in old_vars {
-            match value {
-                Some(v) => env::set_var(key, v),
-                None => env::remove_var(key),
-            }
-        }
     }
 
     #[test]
