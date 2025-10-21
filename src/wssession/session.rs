@@ -94,7 +94,7 @@ impl<'a> Session<'a> {
     ///
     /// # Example for developers
     /// ```ignore
-    /// use tradier::config::Config;
+    /// use tradier::Config;
     /// use tradier::wssession::session::{Session, SessionManager, SessionType};
     /// #[tokio::main]
     /// async fn main() {

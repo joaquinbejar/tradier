@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
 
+use crate::common::AccountType;
 use crate::utils::OneOrMany;
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -18,15 +19,15 @@ pub struct UserProfile {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Account {
-    account_number: String,
-    classification: AccountClassification,
-    date_created: DateTime<Utc>,
-    day_trader: bool,
-    option_level: u8,
-    status: AccountStatus,
+    pub account_number: String,
+    pub classification: AccountClassification,
+    pub date_created: DateTime<Utc>,
+    pub day_trader: bool,
+    pub option_level: u8,
+    pub status: AccountStatus,
     #[serde(rename = "type")]
-    account_type: AccountType,
-    last_update_date: DateTime<Utc>,
+    pub account_type: AccountType,
+    pub last_update_date: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -49,21 +50,12 @@ pub enum AccountStatus {
     Closed,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum AccountType {
-    Cash,
-    Margin,
-}
-
 #[cfg(test)]
 mod test {
-    use crate::test_support::*;
-    use proptest::prelude::*;
+    use proptest::{prelude::any, proptest};
+    use tracing::debug;
 
-    use crate::http::user::UserProfileResponse;
-
+    use crate::user::{test_support::GetUserProfileResponseWire, UserProfileResponse};
     proptest! {
         #[test]
         fn test_deserialize_user_profile_response_from_json(response in any::<GetUserProfileResponseWire>()) {
@@ -71,7 +63,7 @@ mod test {
             let response = serde_json::to_string_pretty(&response)
                 .expect("test fixture to serialize");
             let result: Result<UserProfileResponse, serde_json::Error> = serde_json::from_str(&response);
-            let result = result.inspect_err(|e| println!("{:?}", e));
+            debug!("{:#?}", result);
             assert!(result.is_ok());
         }
     }

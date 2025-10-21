@@ -24,7 +24,7 @@
 //! ### Example
 //!
 //! ```no_run
-//! use tradier::config::Config;
+//! use tradier::Config;
 //! use tradier::wssession::AccountSession;
 //! use tracing::info;
 //!
@@ -58,8 +58,8 @@
 //!
 //! For additional details on the API, refer to the [Tradier Account WebSocket documentation](https://documentation.tradier.com/brokerage-api/streaming/wss-account-websocket).
 
-use crate::config::Config;
 use crate::wssession::session::{Session, SessionType};
+use crate::Config;
 use crate::Result;
 
 use self::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
@@ -97,7 +97,7 @@ impl<'a> AccountSession<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// use tradier::config::Config;
+    /// use tradier::Config;
     /// use tradier::wssession::AccountSession;
     /// #[tokio::main]
     /// async fn main() {
@@ -134,7 +134,7 @@ impl<'a> AccountSession<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// use tradier::config::Config;
+    /// use tradier::Config;
     /// use tradier::wssession::AccountSession;
     /// #[tokio::main]
     /// async fn main() {
@@ -163,7 +163,7 @@ impl<'a> AccountSession<'a> {
     /// # Example
     ///
     /// ```no_run
-    /// use tradier::config::Config;
+    /// use tradier::Config;
     /// use tradier::wssession::AccountSession;
     /// #[tokio::main]
     /// async fn main() {
@@ -187,6 +187,9 @@ mod tests {
     use super::*;
     use crate::{utils::tests::create_test_config, wssession::session_manager::SessionManager};
 
+    // This test breaks if you have valid Config env vars set. The method we have to fix this
+    // is the `crate::utils::with_env_vars()` method, but this method doesn't support async
+    // code, at the moment.
     #[tokio::test]
     async fn test_invalid_config() {
         let session_manager = SessionManager::default();

@@ -22,6 +22,8 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// - `UnexpectedError`: Represents any other unexpected error with an accompanying error message.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Unable to parse the string {0} into an AccountId, must be valid ASCII")]
+    AccountIdParseError(String),
     /// Error when parsing a URL fails.
     ///
     /// # Source
@@ -60,6 +62,11 @@ pub enum Error {
     /// Error raised when attempting to create a session that already exists.
     #[error("Session already exists")]
     SessionAlreadyExists,
+
+    /// Error raised if trying to creat a [`crate::client::blocking::BlockingTradierRestClient`] within an exsiting
+    /// Tokio Runtime.
+    #[error("You are attempting to create a blocking client in an async runtime. Please use the non_blocking client.")]
+    BlockingClientInsideAsyncRuntime,
 
     /// Represents an IO Error
     #[error("IO Error: {0}")]

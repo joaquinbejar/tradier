@@ -207,7 +207,7 @@ impl Config {
 #[cfg(test)]
 mod tests_config {
     use super::*;
-    use crate::test_support::with_env_vars;
+    use crate::utils::tests::with_env_vars;
     use std::sync::Once;
 
     static INIT: Once = Once::new();

@@ -1,9 +1,9 @@
 use std::error::Error;
 use tracing::{error, info};
-use tradier::config::Config;
 use tradier::utils::logger::setup_logger;
 use tradier::wssession::AccountSession;
 use tradier::wssession::{MarketSession, MarketSessionFilter, MarketSessionPayload};
+use tradier::Config;
 
 /// Initializes the program entry point.
 ///
