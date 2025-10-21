@@ -138,7 +138,7 @@ impl<'a> MarketSessionPayload<'a> {
     /// - `Err(Box<dyn Error>)`: An error if serialization fails.
     pub fn get_message(&self) -> Result<Message> {
         serde_json::to_string(self)
-            .map(Message::Text)
+            .map(|s| Message::Text(s.into()))
             .map_err(Into::into)
     }
 }
