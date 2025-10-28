@@ -4,4 +4,4 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
-cc 578f4d09078d8869f27bfadb3fd4c7cbe300cd1ea33cf03e22badd8784db0e34 # shrinks to wire_object = GetUserProfileResponseWire { profile: UserProfileWire { id: "", name: "", account: [] } }
+cc 11dd6e45827def36c83842bc24f5925c1885352b527800de4d9949464dc25923 # shrinks to wire_object = GetUserProfileResponseWire { profile: UserProfileWire { id: "", name: "", account: [] } }

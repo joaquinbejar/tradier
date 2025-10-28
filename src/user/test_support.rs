@@ -1,8 +1,8 @@
-use std::{env, sync::Mutex};
-
 use chrono::{DateTime, Utc};
 use proptest::prelude::Strategy;
 use serde::Serialize;
+
+use crate::common::test_support::AccountTypeWire;
 
 /// This is a class that's used to model the over-the-wire response of the GetUserProfile API
 /// operation. This is used to generate valid JSON to use for testing deserialization of data
@@ -64,40 +64,6 @@ pub enum AccountStatusWire {
     Active,
     Closed,
 }
-#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
-#[serde(rename_all = "lowercase")]
-pub enum AccountTypeWire {
-    Cash,
-    Margin,
-}
-
-static ENV_MUTEX: Mutex<()> = Mutex::new(());
-/// Temporarily sets environment variables for a test and restores them after.
-///
-/// Parameters:
-/// - `vars`: A vector of (key, value) pairs to set as environment variables.
-/// - `test`: A closure to execute with the environment variables set.
-pub(crate) fn with_env_vars<F>(vars: Vec<(&str, &str)>, test: F)
-where
-    F: FnOnce(),
-{
-    let _lock = ENV_MUTEX.lock().unwrap();
-    let mut old_vars = Vec::new();
-
-    for (key, value) in vars {
-        old_vars.push((key, env::var(key).ok()));
-        env::set_var(key, value);
-    }
-
-    test();
-
-    for (key, value) in old_vars {
-        match value {
-            Some(v) => env::set_var(key, v),
-            None => env::remove_var(key),
-        }
-    }
-}
 
 #[cfg(test)]
 mod test {
@@ -105,12 +71,15 @@ mod test {
     use proptest::prelude::*;
     use serde_json::{json, Value};
     use std::fs::OpenOptions;
+    use tracing::debug;
+
+    static PATH: &str = "src/user/get_user_profile_schema.json";
 
     #[test]
     fn should_fail_to_process_an_empty_object() {
         let reader = OpenOptions::new()
             .read(true)
-            .open("src/get_user_profile_schema.json")
+            .open(PATH)
             .expect("schema file to exist and be readable");
         let reader = std::io::BufReader::new(reader);
         let schema: Value =
@@ -125,7 +94,7 @@ mod test {
 
         #[test]
         fn serialized_wire_objects_should_conform_to_schema(wire_object in any::<GetUserProfileResponseWire>()) {
-            let reader = OpenOptions::new().read(true).open("src/get_user_profile_schema.json").expect("schema file to exist and be readable");
+            let reader = OpenOptions::new().read(true).open(PATH).expect("schema file to exist and be readable");
             let reader = std::io::BufReader::new(reader);
             let schema: Value = serde_json::from_reader(reader)
                 .expect("parsing the schema as a Value object to work");
@@ -133,7 +102,7 @@ mod test {
                 .expect("validator in test to work as expected");
             let actual_serialized_value = serde_json::to_value(&wire_object)
                 .expect("serde to serialize the object correctly");
-            println!("{}", &actual_serialized_value);
+            debug!("{:#?}", &actual_serialized_value);
             prop_assert!(validator.is_valid(&actual_serialized_value));
         }
     }

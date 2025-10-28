@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 8dc274e24f4743bc68af52f4d5df1b120516513fdcecdc6055eb63c494087b96 # shrinks to response = GetAccountBalancesResponseWire { balances: GetAccountBalancesWire { option_short_value: 0.0, total_equity: 0.0, account_number: "", account_type: Cash, close_pl: 0.0, current_requirement: 0.0, equity: 0.0, long_market_value: 0.0, market_value: 0.0, open_pl: -0.0, option_long_value: 0.0, option_requirement: 0.0, pending_orders_count: 0, short_market_value: 0.0, stock_long_value: 0.0, total_cash: 0.0, uncleared_funds: 0.0, pending_cash: 0.0, margin: MarginWire { fed_call: 0.0, maintenance_call: 0.0, option_buying_power: 0.0, stock_buying_power: 0.0, stock_short_value: 0.0, sweep: 0.0 } } }, ascii_string = " "
+cc 1a037bbe0fc8610df601ff0eaee7cb94c459deeb8e0827fa945600cf191b63ea # shrinks to response = GetUserProfileResponseWire { profile: UserProfileWire { id: "", name: "", account: [] } }

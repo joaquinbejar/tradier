@@ -1,3 +1,5 @@
+use std::{env, sync::Mutex};
+
 use crate::{
     config::{Config, Credentials, RestApiConfig, StreamingConfig},
     wssession::MarketSessionPayload,
@@ -72,6 +74,34 @@ pub(crate) fn create_test_config(
             events_path: web_socket_path.to_string(),
             reconnect_interval: 5,
         },
+    }
+}
+
+static ENV_MUTEX: Mutex<()> = Mutex::new(());
+/// Temporarily sets environment variables for a test and restores them after.
+///
+/// Parameters:
+/// - `vars`: A vector of (key, value) pairs to set as environment variables.
+/// - `test`: A closure to execute with the environment variables set.
+pub(crate) fn with_env_vars<F>(vars: Vec<(&str, &str)>, test: F)
+where
+    F: FnOnce(),
+{
+    let _lock = ENV_MUTEX.lock().unwrap();
+    let mut old_vars = Vec::new();
+
+    for (key, value) in vars {
+        old_vars.push((key, env::var(key).ok()));
+        env::set_var(key, value);
+    }
+
+    test();
+
+    for (key, value) in old_vars {
+        match value {
+            Some(v) => env::set_var(key, v),
+            None => env::remove_var(key),
+        }
     }
 }
 

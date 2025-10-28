@@ -26,6 +26,7 @@ include = [
 ]
 
 [dependencies]
+async-trait = "0.1.89"
 bon = "3.0"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
