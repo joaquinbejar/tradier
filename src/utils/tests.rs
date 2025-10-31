@@ -4,7 +4,10 @@ use crate::{
     config::{Config, Credentials, RestApiConfig, StreamingConfig},
     wssession::MarketSessionPayload,
 };
+use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
+use proptest::prelude::Strategy;
+use serde::Serialize;
 use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
 use tungstenite::protocol::{frame::coding::CloseCode, CloseFrame, Message};
@@ -134,4 +137,18 @@ pub(crate) async fn mock_websocket_server(
             panic!("Shouldn't be here");
         }
     });
+}
+
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct DateTimeUtcWire(#[proptest(strategy = "arb_date_time_strategy()")] DateTime<Utc>);
+
+/// This function creates arbitrary [chrono::DateTime<Utc>] ojbects.
+///
+/// Because DateTime itself already validates the input seconds and nanoseconds at runtime,
+/// we limit the sample size of inputs to only valid ones.
+fn arb_date_time_strategy() -> impl Strategy<Value = DateTime<Utc>> {
+    (0..(i32::MAX as i64), ..=1_000_000_000u32).prop_filter_map(
+        "Invalid DateTime objects are created as None.",
+        |(seconds, nanos)| DateTime::from_timestamp(seconds, nanos),
+    )
 }

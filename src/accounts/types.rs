@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use crate::common::AccountType;
@@ -72,15 +73,30 @@ pub struct Margin {
     sweep: f64,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct Position {
+    cost_basis: f64,
+    date_acquired: DateTime<Utc>,
+    id: u32,
+    quantity: f64,
+    symbol: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct GetAccountPositionsResponse {
+    positions: Vec<Position>,
+}
+
 #[cfg(test)]
 mod test {
     use proptest::prelude::*;
 
     use crate::{
         accounts::{
-            test_support::GetAccountBalancesResponseWire, types::GetAccountBalancesResponse,
+            test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
+            types::GetAccountBalancesResponse,
         },
-        types::AccountNumber,
+        types::{AccountNumber, GetAccountPositionsResponse},
         Result,
     };
 
@@ -119,6 +135,14 @@ mod test {
             })) {
             let account_number: Result<AccountNumber> = ascii_string.parse();
             assert!(account_number.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_positions_from_json(response in any::<GetAccountPositionsResponseWire>()) {
+            let response = serde_json::to_string_pretty(&response)
+                .expect("test fixture to serialize");
+            let result: std::result::Result<GetAccountPositionsResponse, serde_json::Error> = serde_json::from_str(&response);
+            assert!(result.is_ok());
         }
 
     }
