@@ -113,6 +113,14 @@ impl Accounts for BlockingTradierRestClient {
         self.runtime
             .block_on(self.rest_client.get_account_balances(account_number))
     }
+
+    fn get_account_positions(
+        &self,
+        account_number: &AccountNumber,
+    ) -> Result<crate::types::GetAccountPositionsResponse> {
+        self.runtime
+            .block_on(self.rest_client.get_account_positions(account_number))
+    }
 }
 
 #[cfg(test)]
@@ -121,17 +129,21 @@ mod test {
     use std::cell::RefCell;
 
     use crate::{
-        accounts::test_support::GetAccountBalancesResponseWire,
-        user::test_support::GetUserProfileResponseWire, utils::tests::with_env_vars, Config,
+        accounts::test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
+        user::test_support::GetUserProfileResponseWire,
+        utils::tests::with_env_vars,
+        Config,
     };
 
     use httpmock::MockServer;
     use proptest::prelude::*;
 
     #[test]
-    fn test_get_user_profile() {
+    fn test_blocking_client() {
         let server = MockServer::start();
         let server = RefCell::new(server);
+
+        // Test GetUserProfile
 
         proptest!(|(response in any::<GetUserProfileResponseWire>())| {
             let server = server.borrow_mut();
@@ -155,12 +167,8 @@ mod test {
                 operation.delete();
             });
         });
-    }
 
-    #[test]
-    fn test_get_account_balances() {
-        let server = MockServer::start();
-        let server = RefCell::new(server);
+        // Test GetAccountBalances
 
         proptest!(|(response in any::<GetAccountBalancesResponseWire>(),
                 ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
@@ -183,6 +191,36 @@ mod test {
                 let config = Config::new();
                 let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
                 let response = sut.get_account_balances(&ascii_string.parse().expect("valid ascii"));
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountPositions
+
+        proptest!(|(response in any::<GetAccountPositionsResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/positions"))).unwrap().path())
+                    .header("accept", "application/json");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response)
+                        .expect("serialization of wire type for tests to work"));
+            });
+
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_positions(&ascii_string.parse().expect("valid ascii"));
                 operation.assert();
                 assert_eq!(operation.calls(), 1);
                 assert!(response.is_ok());

@@ -29,5 +29,8 @@ fn main() -> std::result::Result<(), Box<dyn core::error::Error>> {
 
     println!("Account Balances: {balances:#?}");
 
+    let positions = client.get_account_positions(&account_number);
+
+    println!("Account Positions: {positions:#?}");
     Ok(())
 }
