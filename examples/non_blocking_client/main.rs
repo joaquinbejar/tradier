@@ -31,5 +31,11 @@ async fn main() -> std::result::Result<(), Box<dyn core::error::Error>> {
     let balances = tradier_client.get_account_balances(&account_number).await?;
 
     info!("Account balances: {balances:#?}");
+
+    let positions = tradier_client
+        .get_account_positions(&account_number)
+        .await?;
+
+    info!("Account positions: {positions:#?}");
     Ok(())
 }

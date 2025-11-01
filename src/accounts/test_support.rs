@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::common::test_support::AccountTypeWire;
+use crate::{common::test_support::AccountTypeWire, utils::tests::DateTimeUtcWire};
 
 #[derive(Debug, Serialize, proptest_derive::Arbitrary)]
 pub struct GetAccountBalancesResponseWire {
@@ -38,4 +38,17 @@ pub struct MarginWire {
     stock_buying_power: f64,
     stock_short_value: f64,
     sweep: f64,
+}
+
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct PositionWire {
+    cost_basis: f64,
+    date_acquired: DateTimeUtcWire,
+    id: u32,
+    quantity: f64,
+    symbol: String,
+}
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct GetAccountPositionsResponseWire {
+    positions: Vec<PositionWire>,
 }

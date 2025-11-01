@@ -1,9 +1,12 @@
 use url::Url;
 
 use crate::{
-    accounts::api::non_blocking::Accounts,
-    accounts::types::{AccountNumber, GetAccountBalancesResponse},
+    accounts::{
+        api::non_blocking::Accounts,
+        types::{AccountNumber, GetAccountBalancesResponse},
+    },
     config::Config,
+    types::GetAccountPositionsResponse,
     user::{api::non_blocking::User, UserProfileResponse},
     utils::Sealed,
     Error, Result,
@@ -78,6 +81,19 @@ impl Accounts for TradierRestClient {
         let raw_response = self.make_service_call(url, bearer_auth).await?;
         raw_response
             .json::<GetAccountBalancesResponse>()
+            .await
+            .map_err(Error::NetworkError)
+    }
+
+    async fn get_account_positions(
+        &self,
+        account_id: &AccountNumber,
+    ) -> Result<GetAccountPositionsResponse> {
+        let url = self.get_request_url(&format!("/v1/accounts/{account_id}/positions"))?;
+        let bearer_auth = self.get_bearer_token()?;
+        let raw_response = self.make_service_call(url, bearer_auth).await?;
+        raw_response
+            .json::<GetAccountPositionsResponse>()
             .await
             .map_err(Error::NetworkError)
     }

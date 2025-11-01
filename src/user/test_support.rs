@@ -1,8 +1,6 @@
-use chrono::{DateTime, Utc};
-use proptest::prelude::Strategy;
 use serde::Serialize;
 
-use crate::common::test_support::AccountTypeWire;
+use crate::{common::test_support::AccountTypeWire, utils::tests::DateTimeUtcWire};
 
 /// This is a class that's used to model the over-the-wire response of the GetUserProfile API
 /// operation. This is used to generate valid JSON to use for testing deserialization of data
@@ -45,19 +43,6 @@ pub enum ClassificationWire {
     Entity,
 }
 
-#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
-pub struct DateTimeUtcWire(#[proptest(strategy = "arb_date_time_strategy()")] DateTime<Utc>);
-
-/// This function creates arbitrary [chrono::DateTime<Utc>] ojbects.
-///
-/// Because DateTime itself already validates the input seconds and nanoseconds at runtime,
-/// we limit the sample size of inputs to only valid ones.
-fn arb_date_time_strategy() -> impl Strategy<Value = DateTime<Utc>> {
-    (0..(i32::MAX as i64), ..=1_000_000_000u32).prop_filter_map(
-        "Invalid DateTime objects are created as None.",
-        |(seconds, nanos)| DateTime::from_timestamp(seconds, nanos),
-    )
-}
 #[derive(Debug, Serialize, proptest_derive::Arbitrary)]
 #[serde(rename_all = "lowercase")]
 pub enum AccountStatusWire {
