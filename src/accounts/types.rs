@@ -13,15 +13,8 @@ impl FromStr for AccountNumber {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.trim().is_empty() {
-            return Err(crate::Error::AccountIdParseError(s.to_owned()));
-        }
-        let mut is_valid_ascii = false;
-        for c in s.chars().map(|c| c as u8) {
-            if (0x20u8..0x7fu8).contains(&c) {
-                is_valid_ascii = true;
-            }
-        }
-        if is_valid_ascii {
+            Err(crate::Error::AccountIdParseError(s.to_owned()))
+        } else if s.chars().all(|c| (0x20u8..0x7fu8).contains(&(c as u8))) {
             Ok(Self(s.to_string()))
         } else {
             Err(crate::Error::AccountIdParseError(s.to_string()))
@@ -35,6 +28,94 @@ impl std::fmt::Display for AccountNumber {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Page(i32);
+
+impl Page {
+    pub fn new(page_number: i32) -> Self {
+        Self(page_number)
+    }
+}
+
+impl std::default::Default for Page {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
+impl std::fmt::Display for Page {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}", self.0))
+    }
+}
+
+impl From<i32> for Page {
+    fn from(value: i32) -> Self {
+        Self::new(value)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Limit(u32);
+
+impl Limit {
+    pub fn new(limit: u32) -> Self {
+        Self(limit)
+    }
+}
+
+impl std::default::Default for Limit {
+    fn default() -> Self {
+        Self::new(25)
+    }
+}
+
+impl std::fmt::Display for Limit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}", self.0))
+    }
+}
+
+impl From<u32> for Limit {
+    fn from(value: u32) -> Self {
+        Self::new(value)
+    }
+}
+
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum EventType {
+    Trade,
+    Option,
+    Ach,
+    Wire,
+    Dividend,
+    Fee,
+    Tax,
+    Journal,
+    Check,
+    Transfer,
+    Adjustment,
+}
+
+impl std::fmt::Display for EventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            EventType::Trade => "trade",
+            EventType::Option => "option",
+            EventType::Ach => "ach",
+            EventType::Wire => "wire",
+            EventType::Dividend => "dividend",
+            EventType::Fee => "fee",
+            EventType::Tax => "tax",
+            EventType::Journal => "journal",
+            EventType::Check => "check",
+            EventType::Transfer => "transfer",
+            EventType::Adjustment => "adjustment",
+        };
+        f.write_str(value)
+    }
+}
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct GetAccountBalancesResponse {
     balances: AccountBalances,
@@ -91,12 +172,12 @@ pub struct GetAccountPositionsResponse {
 mod test {
     use proptest::prelude::*;
 
+    use super::{
+        AccountNumber, EventType, GetAccountBalancesResponse, GetAccountPositionsResponse, Limit,
+        Page,
+    };
     use crate::{
-        accounts::{
-            test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
-            types::GetAccountBalancesResponse,
-        },
-        types::{AccountNumber, GetAccountPositionsResponse},
+        accounts::test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
         Result,
     };
 
@@ -144,6 +225,87 @@ mod test {
             let result: std::result::Result<GetAccountPositionsResponse, serde_json::Error> = serde_json::from_str(&response);
             assert!(result.is_ok());
         }
+    }
 
+    #[test]
+    fn test_account_number_mixed_invalid() {
+        // Mixed string containing a non-printable character should fail parsing.
+        let input = "ABC\u{001}DEF";
+        let result = input.parse::<AccountNumber>();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_account_number_all_valid() {
+        let input = "ValidAccount123";
+        let result = input.parse::<AccountNumber>();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_account_number_display_preserves_input() {
+        let input = "Account 123";
+        let account_number: AccountNumber = input.parse().expect("should parse");
+        assert_eq!(account_number.to_string(), input);
+    }
+
+    #[test]
+    fn test_account_number_rejects_high_ascii() {
+        let input = "ID\u{80}";
+        let account_number = input.parse::<AccountNumber>();
+        assert!(account_number.is_err());
+    }
+
+    #[test]
+    fn test_page_display() {
+        let page = Page::new(5);
+        assert_eq!(page.to_string(), "5");
+    }
+
+    #[test]
+    fn test_page_default() {
+        assert_eq!(Page::default(), Page::new(1));
+    }
+
+    #[test]
+    fn test_page_from() {
+        assert_eq!(Page::from(3), Page::new(3));
+    }
+
+    #[test]
+    fn test_limit_display() {
+        let limit = Limit::new(100);
+        assert_eq!(limit.to_string(), "100");
+    }
+
+    #[test]
+    fn test_limit_default() {
+        assert_eq!(Limit::default(), Limit::new(25));
+    }
+
+    #[test]
+    fn test_limit_from() {
+        assert_eq!(Limit::from(10), Limit::new(10));
+    }
+
+    #[test]
+    fn test_event_type_display_values() {
+        let cases = vec![
+            (EventType::Trade, "trade"),
+            (EventType::Option, "option"),
+            (EventType::Ach, "ach"),
+            (EventType::Wire, "wire"),
+            (EventType::Dividend, "dividend"),
+            (EventType::Fee, "fee"),
+            (EventType::Tax, "tax"),
+            (EventType::Journal, "journal"),
+            (EventType::Check, "check"),
+            (EventType::Transfer, "transfer"),
+            (EventType::Adjustment, "adjustment"),
+        ];
+
+        for (event, expected) in cases {
+            assert_eq!(event.to_string(), expected);
+        }
     }
 }
