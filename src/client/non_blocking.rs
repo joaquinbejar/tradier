@@ -1,12 +1,13 @@
+use chrono::NaiveDate;
 use url::Url;
 
 use crate::{
     accounts::{
         api::non_blocking::Accounts,
-        types::{AccountNumber, GetAccountBalancesResponse},
+        types::{AccountNumber, EventType, GetAccountBalancesResponse, Limit, Page},
     },
     config::Config,
-    types::GetAccountPositionsResponse,
+    types::{GetAccountHistoryResponse, GetAccountPositionsResponse},
     user::{api::non_blocking::User, UserProfileResponse},
     utils::Sealed,
     Error, Result,
@@ -94,6 +95,57 @@ impl Accounts for TradierRestClient {
         let raw_response = self.make_service_call(url, bearer_auth).await?;
         raw_response
             .json::<GetAccountPositionsResponse>()
+            .await
+            .map_err(Error::NetworkError)
+    }
+
+    async fn get_account_history(
+        &self,
+        account_id: &AccountNumber,
+        page: Option<&Page>,
+        limit: Option<&Limit>,
+        event_types: Option<&[EventType]>,
+        start: Option<&NaiveDate>,
+        end: Option<&NaiveDate>,
+        symbol: Option<&str>,
+        exact_match: Option<bool>,
+    ) -> Result<GetAccountHistoryResponse> {
+        let mut url = self.get_request_url(&format!("/v1/accounts/{account_id}/history"))?;
+        {
+            let mut query_pairs = url.query_pairs_mut();
+            if let Some(page) = page {
+                query_pairs.append_pair("page", &page.to_string());
+            }
+            if let Some(limit) = limit {
+                query_pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(event_types) = event_types {
+                if !event_types.is_empty() {
+                    let joined = event_types
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    query_pairs.append_pair("type", &joined);
+                }
+            }
+            if let Some(start) = start {
+                query_pairs.append_pair("start", &start.to_string());
+            }
+            if let Some(end) = end {
+                query_pairs.append_pair("end", &end.to_string());
+            }
+            if let Some(symbol) = symbol {
+                query_pairs.append_pair("symbol", symbol);
+            }
+            if let Some(exact_match) = exact_match {
+                query_pairs.append_pair("exactMatch", if exact_match { "true" } else { "false" });
+            }
+        }
+        let bearer_auth = self.get_bearer_token()?;
+        let raw_response = self.make_service_call(url, bearer_auth).await?;
+        raw_response
+            .json::<GetAccountHistoryResponse>()
             .await
             .map_err(Error::NetworkError)
     }

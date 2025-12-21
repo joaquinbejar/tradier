@@ -19,10 +19,14 @@
 //! # When **not** to use
 //! - Any code already running under Tokio (e.g., `#[tokio::main]`, `#[tokio::test]`).
 //!   In those cases, import and call the async client directly.
+use chrono::NaiveDate;
 use tokio::runtime::{Handle, Runtime};
 
 use crate::{
-    accounts::types::{AccountNumber, GetAccountBalancesResponse},
+    accounts::types::{
+        AccountNumber, EventType, GetAccountBalancesResponse, GetAccountHistoryResponse, Limit,
+        Page,
+    },
     accounts::{api::blocking::Accounts, api::non_blocking::Accounts as NonBlockingAccounts},
     client::non_blocking::TradierRestClient as AsyncClient,
     user::{api::blocking::User, api::non_blocking::User as NonBlockingUser, UserProfileResponse},
@@ -121,6 +125,29 @@ impl Accounts for BlockingTradierRestClient {
         self.runtime
             .block_on(self.rest_client.get_account_positions(account_number))
     }
+
+    fn get_account_history(
+        &self,
+        account_number: &AccountNumber,
+        page: Option<&Page>,
+        limit: Option<&Limit>,
+        event_types: Option<&[EventType]>,
+        start: Option<&NaiveDate>,
+        end: Option<&NaiveDate>,
+        symbol: Option<&str>,
+        exact_match: Option<bool>,
+    ) -> Result<GetAccountHistoryResponse> {
+        self.runtime.block_on(self.rest_client.get_account_history(
+            account_number,
+            page,
+            limit,
+            event_types,
+            start,
+            end,
+            symbol,
+            exact_match,
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -129,7 +156,11 @@ mod test {
     use std::cell::RefCell;
 
     use crate::{
-        accounts::test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
+        accounts::test_support::{
+            GetAccountBalancesResponseWire, GetAccountHistoryResponseWire,
+            GetAccountPositionsResponseWire,
+        },
+        accounts::types::{EventType, Limit, Page},
         user::test_support::GetUserProfileResponseWire,
         utils::tests::with_env_vars,
         Config,
@@ -221,6 +252,98 @@ mod test {
                 let config = Config::new();
                 let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
                 let response = sut.get_account_positions(&ascii_string.parse().expect("valid ascii"));
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountHistory (no query params)
+
+        proptest!(|(response in any::<GetAccountHistoryResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/history"))).unwrap().path())
+                    .header("accept", "application/json");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response)
+                        .expect("serialization of wire type for tests to work"));
+            });
+
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_history(
+                    &ascii_string.parse().expect("valid ascii"),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                );
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountHistory (with query params)
+
+        proptest!(|(response in any::<GetAccountHistoryResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let page = Page::new(2);
+            let limit = Limit::new(50);
+            let event_types = [EventType::Trade, EventType::Dividend, EventType::Fee];
+            let start = NaiveDate::from_ymd_opt(2024, 1, 2).expect("valid start date");
+            let end = NaiveDate::from_ymd_opt(2024, 1, 31).expect("valid end date");
+            let symbol = "SPY";
+            let exact_match = true;
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/history"))).unwrap().path())
+                    .header("accept", "application/json")
+                    .query_param("page", "2")
+                    .query_param("limit", "50")
+                    .query_param("type", "trade,dividend,fee")
+                    .query_param("start", "2024-01-02")
+                    .query_param("end", "2024-01-31")
+                    .query_param("symbol", "SPY")
+                    .query_param("exactMatch", "true");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response)
+                        .expect("serialization of wire type for tests to work"));
+            });
+
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_history(
+                    &ascii_string.parse().expect("valid ascii"),
+                    Some(&page),
+                    Some(&limit),
+                    Some(&event_types),
+                    Some(&start),
+                    Some(&end),
+                    Some(symbol),
+                    Some(exact_match),
+                );
                 operation.assert();
                 assert_eq!(operation.calls(), 1);
                 assert!(response.is_ok());

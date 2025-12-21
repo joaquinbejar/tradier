@@ -1,5 +1,8 @@
-use crate::accounts::types::AccountNumber;
-use crate::accounts::types::GetAccountBalancesResponse;
+use chrono::NaiveDate;
+
+use crate::accounts::types::{
+    AccountNumber, EventType, GetAccountBalancesResponse, GetAccountHistoryResponse, Limit, Page,
+};
 use crate::types::GetAccountPositionsResponse;
 use crate::{error::Result, utils::Sealed};
 
@@ -17,6 +20,18 @@ pub mod non_blocking {
             &self,
             account_number: &AccountNumber,
         ) -> Result<GetAccountPositionsResponse>;
+
+        async fn get_account_history(
+            &self,
+            account_number: &AccountNumber,
+            page: Option<&Page>,
+            limit: Option<&Limit>,
+            event_types: Option<&[EventType]>,
+            start: Option<&NaiveDate>,
+            end: Option<&NaiveDate>,
+            symbol: Option<&str>,
+            exact_match: Option<bool>,
+        ) -> Result<GetAccountHistoryResponse>;
     }
 }
 pub mod blocking {
@@ -31,5 +46,16 @@ pub mod blocking {
             &self,
             account_number: &AccountNumber,
         ) -> Result<GetAccountPositionsResponse>;
+        fn get_account_history(
+            &self,
+            account_number: &AccountNumber,
+            page: Option<&Page>,
+            limit: Option<&Limit>,
+            event_types: Option<&[EventType]>,
+            start: Option<&NaiveDate>,
+            end: Option<&NaiveDate>,
+            symbol: Option<&str>,
+            exact_match: Option<bool>,
+        ) -> Result<GetAccountHistoryResponse>;
     }
 }
