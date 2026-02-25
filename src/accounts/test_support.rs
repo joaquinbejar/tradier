@@ -52,3 +52,75 @@ pub struct PositionWire {
 pub struct GetAccountPositionsResponseWire {
     positions: Vec<PositionWire>,
 }
+
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct ClosedPositionWire {
+    close_date: DateTimeUtcWire,
+    cost: f64,
+    gain_loss: f64,
+    gain_loss_percent: f64,
+    open_date: DateTimeUtcWire,
+    proceeds: f64,
+    quantity: f64,
+    symbol: String,
+    term: i32,
+}
+
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct AccountGainLossWire {
+    closed_position: Vec<ClosedPositionWire>,
+    page: u32,
+    total_pages: u32,
+    total_positions: u32,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct GetAccountGainLossResponseWire {
+    gainloss: AccountGainLossWire,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use proptest::prelude::*;
+    use serde_json::{json, Value};
+    use std::fs::OpenOptions;
+
+    static GAINLOSS_PATH: &str = "src/accounts/get_account_gainloss_schema.json";
+
+    #[test]
+    fn empty_gainloss_object_should_fail_schema_validation() {
+        let reader = OpenOptions::new()
+            .read(true)
+            .open(GAINLOSS_PATH)
+            .expect("schema file to exist and be readable");
+        let reader = std::io::BufReader::new(reader);
+        let schema: Value =
+            serde_json::from_reader(reader).expect("parsing the schema as a Value object to work");
+        let validator =
+            jsonschema::validator_for(&schema).expect("validator in test to work as expected");
+        assert!(!validator.is_valid(
+            &serde_json::to_value(json!({})).expect("serde to serialize the object correctly")
+        ));
+    }
+
+    proptest! {
+        #[test]
+        fn serialized_gainloss_wire_objects_should_conform_to_schema(
+            wire in any::<GetAccountGainLossResponseWire>()
+        ) {
+            let reader = OpenOptions::new()
+                .read(true)
+                .open(GAINLOSS_PATH)
+                .expect("schema file to exist and be readable");
+            let reader = std::io::BufReader::new(reader);
+            let schema: Value = serde_json::from_reader(reader)
+                .expect("parsing the schema as a Value object to work");
+            let validator = jsonschema::validator_for(&schema)
+                .expect("validator in test to work as expected");
+            let actual_serialized_value = serde_json::to_value(&wire)
+                .expect("serde to serialize the object correctly");
+            prop_assert!(validator.is_valid(&actual_serialized_value));
+        }
+    }
+}

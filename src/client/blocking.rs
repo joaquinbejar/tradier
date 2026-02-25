@@ -22,7 +22,10 @@
 use tokio::runtime::{Handle, Runtime};
 
 use crate::{
-    accounts::types::{AccountNumber, GetAccountBalancesResponse},
+    accounts::types::{
+        AccountNumber, GainLossSortBy, GetAccountBalancesResponse, GetAccountGainLossResponse,
+        Limit, Page, SortOrder,
+    },
     accounts::{api::blocking::Accounts, api::non_blocking::Accounts as NonBlockingAccounts},
     client::non_blocking::TradierRestClient as AsyncClient,
     user::{api::blocking::User, api::non_blocking::User as NonBlockingUser, UserProfileResponse},
@@ -121,6 +124,24 @@ impl Accounts for BlockingTradierRestClient {
         self.runtime
             .block_on(self.rest_client.get_account_positions(account_number))
     }
+
+    fn get_account_gain_loss(
+        &self,
+        account_number: &AccountNumber,
+        page: Option<Page>,
+        limit: Option<Limit>,
+        sort_by: Option<GainLossSortBy>,
+        sort_order: Option<SortOrder>,
+    ) -> Result<GetAccountGainLossResponse> {
+        self.runtime
+            .block_on(self.rest_client.get_account_gain_loss(
+                account_number,
+                page,
+                limit,
+                sort_by,
+                sort_order,
+            ))
+    }
 }
 
 #[cfg(test)]
@@ -129,7 +150,11 @@ mod test {
     use std::cell::RefCell;
 
     use crate::{
-        accounts::test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
+        accounts::test_support::{
+            GetAccountBalancesResponseWire, GetAccountGainLossResponseWire,
+            GetAccountPositionsResponseWire,
+        },
+        accounts::types::{GainLossSortBy, Limit, Page, SortOrder},
         user::test_support::GetUserProfileResponseWire,
         utils::tests::with_env_vars,
         Config,
@@ -221,6 +246,176 @@ mod test {
                 let config = Config::new();
                 let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
                 let response = sut.get_account_positions(&ascii_string.parse().expect("valid ascii"));
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountGainLoss (no params)
+        proptest!(|(response in any::<GetAccountGainLossResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/gainloss"))).unwrap().path())
+                    .header("accept", "application/json");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response).expect("serialization to work"));
+            });
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_gain_loss(
+                    &ascii_string.parse().expect("valid ascii"),
+                    None, None, None, None,
+                );
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountGainLoss (sortBy=symbol, sort=asc)
+        proptest!(|(response in any::<GetAccountGainLossResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/gainloss"))).unwrap().path())
+                    .header("accept", "application/json")
+                    .query_param("page", "2")
+                    .query_param("limit", "50")
+                    .query_param("sortBy", "symbol")
+                    .query_param("sort", "asc");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response).expect("serialization to work"));
+            });
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_gain_loss(
+                    &ascii_string.parse().expect("valid ascii"),
+                    Some(Page::new(2)),
+                    Some(Limit::new(50)),
+                    Some(GainLossSortBy::Symbol),
+                    Some(SortOrder::Asc),
+                );
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountGainLoss (sortBy=closedate, sort=desc)
+        proptest!(|(response in any::<GetAccountGainLossResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/gainloss"))).unwrap().path())
+                    .header("accept", "application/json")
+                    .query_param("sortBy", "closedate")
+                    .query_param("sort", "desc");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response).expect("serialization to work"));
+            });
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_gain_loss(
+                    &ascii_string.parse().expect("valid ascii"),
+                    None,
+                    None,
+                    Some(GainLossSortBy::CloseDate),
+                    Some(SortOrder::Desc),
+                );
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountGainLoss (sortBy=opendate)
+        proptest!(|(response in any::<GetAccountGainLossResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/gainloss"))).unwrap().path())
+                    .header("accept", "application/json")
+                    .query_param("sortBy", "opendate");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response).expect("serialization to work"));
+            });
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_gain_loss(
+                    &ascii_string.parse().expect("valid ascii"),
+                    None,
+                    None,
+                    Some(GainLossSortBy::OpenDate),
+                    None,
+                );
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountGainLoss (sortBy=gainloss)
+        proptest!(|(response in any::<GetAccountGainLossResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/gainloss"))).unwrap().path())
+                    .header("accept", "application/json")
+                    .query_param("sortBy", "gainloss");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response).expect("serialization to work"));
+            });
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_gain_loss(
+                    &ascii_string.parse().expect("valid ascii"),
+                    None,
+                    None,
+                    Some(GainLossSortBy::GainLoss),
+                    None,
+                );
                 operation.assert();
                 assert_eq!(operation.calls(), 1);
                 assert!(response.is_ok());
