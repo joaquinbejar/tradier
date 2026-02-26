@@ -22,7 +22,10 @@
 use tokio::runtime::{Handle, Runtime};
 
 use crate::{
-    accounts::types::{AccountNumber, GetAccountBalancesResponse},
+    accounts::types::{
+        AccountNumber, GetAccountBalancesResponse, GetAccountOrdersResponse, IncludeTags, Limit,
+        Page,
+    },
     accounts::{api::blocking::Accounts, api::non_blocking::Accounts as NonBlockingAccounts},
     client::non_blocking::TradierRestClient as AsyncClient,
     user::{api::blocking::User, api::non_blocking::User as NonBlockingUser, UserProfileResponse},
@@ -121,6 +124,21 @@ impl Accounts for BlockingTradierRestClient {
         self.runtime
             .block_on(self.rest_client.get_account_positions(account_number))
     }
+
+    fn get_account_orders(
+        &self,
+        account_number: &AccountNumber,
+        page: &Page,
+        limit: &Limit,
+        include_tags: &IncludeTags,
+    ) -> Result<GetAccountOrdersResponse> {
+        self.runtime.block_on(self.rest_client.get_account_orders(
+            account_number,
+            page,
+            limit,
+            include_tags,
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -129,7 +147,10 @@ mod test {
     use std::cell::RefCell;
 
     use crate::{
-        accounts::test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
+        accounts::test_support::{
+            GetAccountBalancesResponseWire, GetAccountOrdersResponseWire,
+            GetAccountPositionsResponseWire,
+        },
         user::test_support::GetUserProfileResponseWire,
         utils::tests::with_env_vars,
         Config,
@@ -144,8 +165,10 @@ mod test {
         let server = RefCell::new(server);
 
         // Test GetUserProfile
+        // Low case count: these tests exercise HTTP wiring, not domain logic.
+        // Domain correctness is verified by the deserialization and schema proptests.
 
-        proptest!(|(response in any::<GetUserProfileResponseWire>())| {
+        proptest!(ProptestConfig::with_cases(16), |(response in any::<GetUserProfileResponseWire>())| {
             let server = server.borrow_mut();
             let mut operation = server.mock(|when, then| {
                 when.path(url::Url::parse(&server.url("/v1/user/profile")).unwrap().path())
@@ -170,7 +193,7 @@ mod test {
 
         // Test GetAccountBalances
 
-        proptest!(|(response in any::<GetAccountBalancesResponseWire>(),
+        proptest!(ProptestConfig::with_cases(16), |(response in any::<GetAccountBalancesResponseWire>(),
                 ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
             .prop_flat_map(|vec| {
                 Just(vec.into_iter().map(|c| c as char).collect::<String>())
@@ -200,7 +223,7 @@ mod test {
 
         // Test GetAccountPositions
 
-        proptest!(|(response in any::<GetAccountPositionsResponseWire>(),
+        proptest!(ProptestConfig::with_cases(16), |(response in any::<GetAccountPositionsResponseWire>(),
                 ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
             .prop_flat_map(|vec| {
                 Just(vec.into_iter().map(|c| c as char).collect::<String>())
@@ -221,6 +244,78 @@ mod test {
                 let config = Config::new();
                 let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
                 let response = sut.get_account_positions(&ascii_string.parse().expect("valid ascii"));
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountOrders with includeTags=true
+        // Reduced case count: GetAccountOrdersResponseWire is deeply nested
+        // and the default 256 cases exceed tarpaulin's timeout budget.
+
+        proptest!(ProptestConfig::with_cases(16), |(response in any::<GetAccountOrdersResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/orders"))).unwrap().path())
+                    .header("accept", "application/json");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response)
+                        .expect("serialization of wire type for tests to work"));
+            });
+
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_orders(
+                    &ascii_string.parse().expect("valid ascii"),
+                    &Page::default(),
+                    &Limit::default(),
+                    &IncludeTags::from(true),
+                );
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+
+        // Test GetAccountOrders with includeTags=false
+
+        proptest!(ProptestConfig::with_cases(16), |(response in any::<GetAccountOrdersResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/orders"))).unwrap().path())
+                    .header("accept", "application/json");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response)
+                        .expect("serialization of wire type for tests to work"));
+            });
+
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_orders(
+                    &ascii_string.parse().expect("valid ascii"),
+                    &Page::default(),
+                    &Limit::default(),
+                    &IncludeTags::from(false),
+                );
                 operation.assert();
                 assert_eq!(operation.calls(), 1);
                 assert!(response.is_ok());

@@ -1,5 +1,6 @@
-use crate::accounts::types::AccountNumber;
-use crate::accounts::types::GetAccountBalancesResponse;
+use crate::accounts::types::{
+    AccountNumber, GetAccountBalancesResponse, GetAccountOrdersResponse, IncludeTags, Limit, Page,
+};
 use crate::types::GetAccountPositionsResponse;
 use crate::{error::Result, utils::Sealed};
 
@@ -17,6 +18,14 @@ pub mod non_blocking {
             &self,
             account_number: &AccountNumber,
         ) -> Result<GetAccountPositionsResponse>;
+
+        async fn get_account_orders(
+            &self,
+            account_number: &AccountNumber,
+            page: &Page,
+            limit: &Limit,
+            include_tags: &IncludeTags,
+        ) -> Result<GetAccountOrdersResponse>;
     }
 }
 pub mod blocking {
@@ -27,9 +36,18 @@ pub mod blocking {
             &self,
             account_number: &AccountNumber,
         ) -> Result<GetAccountBalancesResponse>;
+
         fn get_account_positions(
             &self,
             account_number: &AccountNumber,
         ) -> Result<GetAccountPositionsResponse>;
+
+        fn get_account_orders(
+            &self,
+            account_number: &AccountNumber,
+            page: &Page,
+            limit: &Limit,
+            include_tags: &IncludeTags,
+        ) -> Result<GetAccountOrdersResponse>;
     }
 }

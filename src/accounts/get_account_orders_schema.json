@@ -1,0 +1,112 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-account-orders.json",
+    "title": "GetAccountOrders response",
+    "type": "object",
+    "required": ["orders"],
+    "additionalProperties": false,
+    "properties": {
+        "orders": { "$ref": "#/$defs/AccountOrders" }
+    },
+    "$defs": {
+        "AccountOrders": {
+            "type": "object",
+            "required": ["order", "page", "total_pages", "total_orders"],
+            "additionalProperties": false,
+            "properties": {
+                "order": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Order" }
+                },
+                "page": { "type": "integer" },
+                "total_pages": { "type": "integer" },
+                "total_orders": { "type": "integer" }
+            }
+        },
+        "Order": {
+            "type": "object",
+            "required": [
+                "id", "type", "symbol", "side", "quantity", "status", "duration",
+                "avg_fill_price", "exec_quantity", "create_date", "transaction_date",
+                "class", "last_fill_price", "last_fill_quantity", "remaining_quantity",
+                "price", "option_symbol", "num_legs", "strategy", "leg"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": { "type": "integer" },
+                "type": { "$ref": "#/$defs/OrderType" },
+                "symbol": { "type": "string" },
+                "side": { "$ref": "#/$defs/OrderSide" },
+                "quantity": { "type": "number" },
+                "status": { "$ref": "#/$defs/OrderStatus" },
+                "duration": { "$ref": "#/$defs/OrderDuration" },
+                "avg_fill_price": { "type": "number" },
+                "exec_quantity": { "type": "number" },
+                "create_date": { "$ref": "#/$defs/DateTimeString" },
+                "transaction_date": { "$ref": "#/$defs/DateTimeString" },
+                "class": { "$ref": "#/$defs/OrderClass" },
+                "last_fill_price": { "type": "number" },
+                "last_fill_quantity": { "type": "number" },
+                "remaining_quantity": { "type": "number" },
+                "price": { "type": "number" },
+                "option_symbol": { "type": "string" },
+                "num_legs": { "type": "integer" },
+                "strategy": { "type": "string" },
+                "leg": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/OrderLeg" }
+                }
+            }
+        },
+        "OrderLeg": {
+            "type": "object",
+            "required": [
+                "id", "type", "symbol", "side", "quantity", "status", "duration",
+                "avg_fill_price", "exec_quantity", "last_fill_price", "last_fill_quantity",
+                "remaining_quantity", "price", "option_symbol"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "id": { "type": "integer" },
+                "type": { "$ref": "#/$defs/OrderType" },
+                "symbol": { "type": "string" },
+                "side": { "$ref": "#/$defs/OrderSide" },
+                "quantity": { "type": "number" },
+                "status": { "$ref": "#/$defs/OrderStatus" },
+                "duration": { "$ref": "#/$defs/OrderDuration" },
+                "avg_fill_price": { "type": "number" },
+                "exec_quantity": { "type": "number" },
+                "last_fill_price": { "type": "number" },
+                "last_fill_quantity": { "type": "number" },
+                "remaining_quantity": { "type": "number" },
+                "price": { "type": "number" },
+                "option_symbol": { "type": "string" }
+            }
+        },
+        "OrderType": {
+            "type": "string",
+            "enum": ["market", "limit", "stop", "stop_limit", "debit", "credit", "even"]
+        },
+        "OrderSide": {
+            "type": "string",
+            "enum": ["buy", "buy_to_cover", "sell", "sell_short", "buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]
+        },
+        "OrderStatus": {
+            "type": "string",
+            "enum": ["pending", "open", "partially_filled", "filled", "expired", "canceled", "rejected", "pending_cancel"]
+        },
+        "OrderDuration": {
+            "type": "string",
+            "enum": ["day", "gtc", "pre", "post"]
+        },
+        "OrderClass": {
+            "type": "string",
+            "enum": ["equity", "option", "multileg", "combo"]
+        },
+        "DateTimeString": {
+            "type": "string",
+            "format": "date-time",
+            "description": "RFC 3339 timestamp (e.g., 2015-01-01T15:25:47.000Z)"
+        }
+    }
+}
