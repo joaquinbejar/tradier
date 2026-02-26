@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use crate::common::AccountType;
+use crate::utils::OneOrMany;
 
 #[derive(Debug)]
 pub struct AccountNumber(String);
@@ -82,6 +83,27 @@ impl From<u32> for Limit {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct IncludeTags(bool);
+
+impl IncludeTags {
+    pub fn new(include: bool) -> Self {
+        Self(include)
+    }
+}
+
+impl std::fmt::Display for IncludeTags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<bool> for IncludeTags {
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum EventType {
@@ -116,6 +138,124 @@ impl std::fmt::Display for EventType {
         f.write_str(value)
     }
 }
+#[non_exhaustive]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderType {
+    Market,
+    Limit,
+    Stop,
+    StopLimit,
+    Debit,
+    Credit,
+    Even,
+}
+
+#[non_exhaustive]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderSide {
+    Buy,
+    BuyToCover,
+    Sell,
+    SellShort,
+    BuyToOpen,
+    BuyToClose,
+    SellToOpen,
+    SellToClose,
+}
+
+#[non_exhaustive]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderStatus {
+    Pending,
+    Open,
+    PartiallyFilled,
+    Filled,
+    Expired,
+    Canceled,
+    Rejected,
+    PendingCancel,
+}
+
+#[non_exhaustive]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderDuration {
+    Day,
+    Gtc,
+    Pre,
+    Post,
+}
+
+#[non_exhaustive]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderClass {
+    Equity,
+    Option,
+    Multileg,
+    Combo,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct OrderLeg {
+    id: u32,
+    #[serde(rename = "type")]
+    order_type: OrderType,
+    symbol: String,
+    side: OrderSide,
+    quantity: f64,
+    status: OrderStatus,
+    duration: OrderDuration,
+    avg_fill_price: f64,
+    exec_quantity: f64,
+    last_fill_price: Option<f64>,
+    last_fill_quantity: Option<f64>,
+    remaining_quantity: Option<f64>,
+    price: Option<f64>,
+    option_symbol: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct Order {
+    id: u32,
+    #[serde(rename = "type")]
+    order_type: OrderType,
+    symbol: String,
+    side: OrderSide,
+    quantity: f64,
+    status: OrderStatus,
+    duration: OrderDuration,
+    avg_fill_price: f64,
+    exec_quantity: f64,
+    create_date: DateTime<Utc>,
+    transaction_date: DateTime<Utc>,
+    class: OrderClass,
+    last_fill_price: Option<f64>,
+    last_fill_quantity: Option<f64>,
+    remaining_quantity: Option<f64>,
+    price: Option<f64>,
+    option_symbol: Option<String>,
+    num_legs: Option<u32>,
+    strategy: Option<String>,
+    leg: Option<OneOrMany<OrderLeg>>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct AccountOrders {
+    order: OneOrMany<Order>,
+    page: i32,
+    total_pages: i32,
+    total_orders: i32,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct GetAccountOrdersResponse {
+    orders: AccountOrders,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct GetAccountBalancesResponse {
     balances: AccountBalances,
@@ -173,11 +313,14 @@ mod test {
     use proptest::prelude::*;
 
     use super::{
-        AccountNumber, EventType, GetAccountBalancesResponse, GetAccountPositionsResponse, Limit,
-        Page,
+        AccountNumber, EventType, GetAccountBalancesResponse, GetAccountOrdersResponse,
+        GetAccountPositionsResponse, IncludeTags, Limit, Page,
     };
     use crate::{
-        accounts::test_support::{GetAccountBalancesResponseWire, GetAccountPositionsResponseWire},
+        accounts::test_support::{
+            GetAccountBalancesResponseWire, GetAccountOrdersResponseWire,
+            GetAccountPositionsResponseWire,
+        },
         Result,
     };
 
@@ -225,6 +368,36 @@ mod test {
             let result: std::result::Result<GetAccountPositionsResponse, serde_json::Error> = serde_json::from_str(&response);
             assert!(result.is_ok());
         }
+
+    }
+
+    // Separate block with a lower case count because OrderWire is deeply nested
+    // and the default 256 cases exceed tarpaulin's timeout budget.
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(32))]
+
+        #[test]
+        fn test_deserialize_orders_from_json(response in any::<GetAccountOrdersResponseWire>()) {
+            let response = serde_json::to_string_pretty(&response)
+                .expect("test fixture to serialize");
+            let result: std::result::Result<GetAccountOrdersResponse, serde_json::Error> = serde_json::from_str(&response);
+            assert!(result.is_ok());
+        }
+    }
+
+    #[test]
+    fn test_include_tags_default_is_false() {
+        assert_eq!(IncludeTags::default().to_string(), "false");
+    }
+
+    #[test]
+    fn test_include_tags_from_true() {
+        assert_eq!(IncludeTags::from(true).to_string(), "true");
+    }
+
+    #[test]
+    fn test_include_tags_from_false() {
+        assert_eq!(IncludeTags::from(false).to_string(), "false");
     }
 
     #[test]
