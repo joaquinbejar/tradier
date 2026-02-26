@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["gainloss"],
+  "properties": {
+    "gainloss": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["closed_position", "page", "total_pages", "total_positions"],
+      "properties": {
+        "closed_position": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "close_date", "cost", "gain_loss", "gain_loss_percent",
+              "open_date", "proceeds", "quantity", "symbol", "term"
+            ],
+            "properties": {
+              "close_date": { "type": "string", "format": "date-time" },
+              "cost": { "type": "number" },
+              "gain_loss": { "type": "number" },
+              "gain_loss_percent": { "type": "number" },
+              "open_date": { "type": "string", "format": "date-time" },
+              "proceeds": { "type": "number" },
+              "quantity": { "type": "number" },
+              "symbol": { "type": "string" },
+              "term": { "type": "integer" }
+            }
+          }
+        },
+        "page": { "type": "integer" },
+        "total_pages": { "type": "integer" },
+        "total_positions": { "type": "integer" }
+      }
+    }
+  }
+}
