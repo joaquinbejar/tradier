@@ -79,6 +79,56 @@ pub struct GetAccountGainLossResponseWire {
     gainloss: AccountGainLossWire,
 }
 
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct GetAccountHistoryResponseWire {
+    history: AccountHistoryEventsWire,
+}
+
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct AccountHistoryEventsWire {
+    event: Vec<AccountEventWire>,
+    #[proptest(strategy = "1..u32::MAX")]
+    page: u32,
+    #[proptest(strategy = "1..u32::MAX")]
+    total_pages: u32,
+    total_events: u32,
+}
+
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct AccountEventWire {
+    date: DateTimeUtcWire,
+    #[serde(rename = "type")]
+    event_type: EventTypeWire,
+    amount: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    symbol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    commission: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum EventTypeWire {
+    Trade,
+    Option,
+    Ach,
+    Wire,
+    Dividend,
+    Fee,
+    Tax,
+    Journal,
+    Check,
+    Transfer,
+    Adjustment,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -86,13 +136,37 @@ mod test {
     use serde_json::{json, Value};
     use std::fs::OpenOptions;
 
-    static GAINLOSS_PATH: &str = "src/accounts/get_account_gainloss_schema.json";
+    static GAINLOSS_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/accounts/get_account_gainloss_schema.json"
+    );
+
+    static HISTORY_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/accounts/get_account_history_schema.json"
+    );
 
     #[test]
     fn empty_gainloss_object_should_fail_schema_validation() {
         let reader = OpenOptions::new()
             .read(true)
             .open(GAINLOSS_PATH)
+            .expect("schema file to exist and be readable");
+        let reader = std::io::BufReader::new(reader);
+        let schema: Value =
+            serde_json::from_reader(reader).expect("parsing the schema as a Value object to work");
+        let validator =
+            jsonschema::validator_for(&schema).expect("validator in test to work as expected");
+        assert!(!validator.is_valid(
+            &serde_json::to_value(json!({})).expect("serde to serialize the object correctly")
+        ));
+    }
+
+    #[test]
+    fn empty_history_object_should_fail_schema_validation() {
+        let reader = OpenOptions::new()
+            .read(true)
+            .open(HISTORY_PATH)
             .expect("schema file to exist and be readable");
         let reader = std::io::BufReader::new(reader);
         let schema: Value =
@@ -119,6 +193,24 @@ mod test {
             let validator = jsonschema::validator_for(&schema)
                 .expect("validator in test to work as expected");
             let actual_serialized_value = serde_json::to_value(&wire)
+                .expect("serde to serialize the object correctly");
+            prop_assert!(validator.is_valid(&actual_serialized_value));
+        }
+
+        #[test]
+        fn serialized_history_wire_objects_should_conform_to_schema(
+            wire_object in any::<GetAccountHistoryResponseWire>()
+        ) {
+            let reader = OpenOptions::new()
+                .read(true)
+                .open(HISTORY_PATH)
+                .expect("schema file to exist and be readable");
+            let reader = std::io::BufReader::new(reader);
+            let schema: Value = serde_json::from_reader(reader)
+                .expect("parsing the schema as a Value object to work");
+            let validator = jsonschema::validator_for(&schema)
+                .expect("validator in test to work as expected");
+            let actual_serialized_value = serde_json::to_value(&wire_object)
                 .expect("serde to serialize the object correctly");
             prop_assert!(validator.is_valid(&actual_serialized_value));
         }

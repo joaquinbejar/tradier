@@ -82,7 +82,8 @@ impl From<u32> for Limit {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum EventType {
     Trade,
@@ -218,6 +219,32 @@ pub struct GetAccountPositionsResponse {
     positions: Vec<Position>,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct GetAccountHistoryResponse {
+    pub history: AccountHistoryEvents,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct AccountHistoryEvents {
+    pub event: Vec<AccountEvent>,
+    pub page: u32,
+    pub total_pages: u32,
+    pub total_events: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct AccountEvent {
+    pub date: DateTime<Utc>,
+    #[serde(rename = "type")]
+    pub event_type: EventType,
+    pub amount: f64,
+    pub symbol: Option<String>,
+    pub quantity: Option<f64>,
+    pub price: Option<f64>,
+    pub description: Option<String>,
+    pub commission: Option<f64>,
+}
+
 #[cfg(test)]
 mod test {
     use proptest::prelude::*;
@@ -229,8 +256,9 @@ mod test {
     use crate::{
         accounts::test_support::{
             GetAccountBalancesResponseWire, GetAccountGainLossResponseWire,
-            GetAccountPositionsResponseWire,
+            GetAccountHistoryResponseWire, GetAccountPositionsResponseWire,
         },
+        types::GetAccountHistoryResponse,
         Result,
     };
 
@@ -256,7 +284,8 @@ mod test {
         fn test_account_number_from_printable_ascii_string(ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..1000)
             .prop_flat_map(|vec| {
                 Just(vec.into_iter().map(|c| c as char).collect::<String>())
-            })) {
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty())) {
 
             let account_number: Result<AccountNumber> = ascii_string.parse();
             assert!(account_number.is_ok());
@@ -287,6 +316,14 @@ mod test {
                 .expect("test fixture to serialize");
             let result: std::result::Result<GetAccountGainLossResponse, serde_json::Error> =
                 serde_json::from_str(&json);
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_deserialize_account_history_response_from_json(response in any::<GetAccountHistoryResponseWire>()) {
+            let response = serde_json::to_string_pretty(&response)
+                .expect("test fixture to serialize");
+            let result: std::result::Result<GetAccountHistoryResponse, serde_json::Error> = serde_json::from_str(&response);
             assert!(result.is_ok());
         }
     }
