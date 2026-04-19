@@ -5,6 +5,7 @@
 //!
 //! Upstream docs: <https://documentation.tradier.com/brokerage-api/markets/get-company>.
 
+pub mod api;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod types;
