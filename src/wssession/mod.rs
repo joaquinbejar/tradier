@@ -21,6 +21,7 @@
 //! their applications, facilitating real-time data processing and event handling.
 
 mod account;
+pub mod account_events;
 
 pub mod events;
 mod market;
@@ -30,5 +31,9 @@ pub(crate) mod session_manager;
 pub(crate) mod ws_decode;
 
 pub use account::{AccountSession, AccountSessionEvent, AccountSessionPayload};
+pub use account_events::{
+    AccountBalanceEvent, AccountDropEvent, AccountEvent, AccountFillEvent, AccountOrderEvent,
+    AccountPositionEvent, AccountTradeEvent,
+};
 pub use events::{MarketEvent, Quote, Summary, Timesale, Trade, TradeSession, Tradex};
 pub use market::{MarketSession, MarketSessionFilter, MarketSessionPayload};
