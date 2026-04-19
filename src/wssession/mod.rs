@@ -27,6 +27,7 @@ mod market;
 
 pub(crate) mod session;
 pub(crate) mod session_manager;
+pub(crate) mod ws_decode;
 
 pub use account::{AccountSession, AccountSessionEvent, AccountSessionPayload};
 pub use events::{MarketEvent, Quote, Summary, Timesale, Trade, TradeSession, Tradex};
