@@ -384,7 +384,7 @@ pub struct LookupSecurityWire {
 mod test {
     use super::*;
     use proptest::prelude::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use std::fs::OpenOptions;
 
     static QUOTES_PATH: &str = concat!(

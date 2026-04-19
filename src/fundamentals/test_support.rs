@@ -188,7 +188,7 @@ pub struct StatisticsResponseArrayWire(
 mod test {
     use super::*;
     use proptest::prelude::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use std::fs::OpenOptions;
 
     static COMPANY_PATH: &str = concat!(

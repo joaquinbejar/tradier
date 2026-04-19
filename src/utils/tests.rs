@@ -10,7 +10,7 @@ use proptest::prelude::Strategy;
 use serde::Serialize;
 use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
-use tungstenite::protocol::{frame::coding::CloseCode, CloseFrame, Message};
+use tungstenite::protocol::{CloseFrame, Message, frame::coding::CloseCode};
 
 #[macro_export]
 macro_rules! assert_decimal_relative_eq {
@@ -95,15 +95,18 @@ where
 
     for (key, value) in vars {
         old_vars.push((key, env::var(key).ok()));
-        env::set_var(key, value);
+        // SAFETY: tests serialize on ENV_MUTEX so no concurrent env access occurs.
+        unsafe { env::set_var(key, value) };
     }
 
     test();
 
     for (key, value) in old_vars {
         match value {
-            Some(v) => env::set_var(key, v),
-            None => env::remove_var(key),
+            // SAFETY: tests serialize on ENV_MUTEX so no concurrent env access occurs.
+            Some(v) => unsafe { env::set_var(key, v) },
+            // SAFETY: tests serialize on ENV_MUTEX so no concurrent env access occurs.
+            None => unsafe { env::remove_var(key) },
         }
     }
 }

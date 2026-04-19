@@ -76,7 +76,9 @@ pub enum Error {
 
     /// Error raised if trying to creat a [`crate::client::blocking::BlockingTradierRestClient`] within an exsiting
     /// Tokio Runtime.
-    #[error("You are attempting to create a blocking client in an async runtime. Please use the non_blocking client.")]
+    #[error(
+        "You are attempting to create a blocking client in an async runtime. Please use the non_blocking client."
+    )]
     BlockingClientInsideAsyncRuntime,
 
     /// Represents an IO Error

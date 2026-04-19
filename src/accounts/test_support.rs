@@ -262,7 +262,7 @@ pub struct GetAccountOrdersResponseWire {
 mod test {
     use super::*;
     use proptest::prelude::*;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use std::fs::OpenOptions;
 
     static GAINLOSS_PATH: &str = concat!(

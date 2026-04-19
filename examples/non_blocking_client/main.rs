@@ -1,9 +1,9 @@
 use tracing::info;
-use tradier::non_blocking::operation::{Accounts, User};
+use tradier::Config;
 use tradier::non_blocking::Client;
+use tradier::non_blocking::operation::{Accounts, User};
 use tradier::types::AccountNumber;
 use tradier::utils::logger::setup_logger;
-use tradier::Config;
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn core::error::Error>> {

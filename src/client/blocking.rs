@@ -23,6 +23,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use tokio::runtime::{Handle, Runtime};
 
 use crate::{
+    Config, Result,
     accounts::types::{
         AccountNumber, EventType, GainLossSortBy, GetAccountBalancesResponse,
         GetAccountGainLossResponse, GetAccountHistoryResponse, GetAccountOrdersResponse,
@@ -52,9 +53,8 @@ use crate::{
             TimeSalesInterval,
         },
     },
-    user::{api::blocking::User, api::non_blocking::User as NonBlockingUser, UserProfileResponse},
+    user::{UserProfileResponse, api::blocking::User, api::non_blocking::User as NonBlockingUser},
     utils::Sealed,
-    Config, Result,
 };
 
 /// A synchronous façade over [`AsyncClient`] for environments without a Tokio runtime.
@@ -364,6 +364,7 @@ mod test {
     use std::cell::RefCell;
 
     use crate::{
+        Config,
         accounts::test_support::{
             GetAccountBalancesResponseWire, GetAccountGainLossResponseWire,
             GetAccountHistoryResponseWire, GetAccountOrdersResponseWire,
@@ -373,7 +374,6 @@ mod test {
         common::SortOrder,
         user::test_support::GetUserProfileResponseWire,
         utils::tests::with_env_vars,
-        Config,
     };
 
     use httpmock::MockServer;
@@ -727,6 +727,7 @@ mod test {
 mod market_data_tests {
     use super::BlockingTradierRestClient;
     use crate::{
+        Config,
         market_data::{
             api::blocking::MarketData,
             test_support::{
@@ -744,7 +745,6 @@ mod market_data_tests {
             },
         },
         utils::tests::with_env_vars,
-        Config,
     };
     use chrono::{NaiveDate, TimeZone, Utc};
     use httpmock::MockServer;
@@ -1393,6 +1393,7 @@ mod market_data_tests {
 mod fundamentals_tests {
     use super::BlockingTradierRestClient;
     use crate::{
+        Config,
         common::Symbol,
         fundamentals::{
             api::blocking::Fundamentals,
@@ -1403,7 +1404,6 @@ mod fundamentals_tests {
             },
         },
         utils::tests::with_env_vars,
-        Config,
     };
     use httpmock::MockServer;
     use proptest::prelude::*;
