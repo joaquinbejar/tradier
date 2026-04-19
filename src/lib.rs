@@ -15,7 +15,7 @@ mod accounts;
 mod client;
 pub mod common;
 mod market_data;
-mod streaming;
+pub mod streaming;
 mod trading;
 mod user;
 mod watchlists;

@@ -1,12 +1,14 @@
 use crate::config::Config;
+use crate::wssession::events::MarketEvent;
 use crate::wssession::session::{Session, SessionType};
 use crate::{Error, Result};
+use futures_util::stream::Stream;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 use tokio_tungstenite::connect_async;
-use tracing::{error, info};
+use tracing::{debug, info, trace, warn};
 use tungstenite::Message;
 use url::Url;
 
@@ -211,61 +213,102 @@ impl<'a> MarketSession<'a> {
         self.0.get_websocket_url()
     }
 
-    /// Initiates a WebSocket connection and streams data based on the provided payload.
+    /// Opens the market WebSocket and returns an async [`Stream`] of typed
+    /// [`MarketEvent`] values.
     ///
-    /// # Arguments
-    /// - `payload`: A `MarketSessionPayload` specifying symbols and settings for the WebSocket session.
+    /// Each upstream text frame is split on `\n` so a single frame that
+    /// happens to bundle multiple newline-delimited JSON events is still
+    /// handled correctly (Tradier's current contract delivers one event
+    /// per frame, but this keeps the decoder future-proof).
     ///
-    /// # Returns
-    /// - `Ok(())`: If the WebSocket connection was successfully managed.
-    /// - `Err(Box<dyn Error>)`: If the WebSocket connection or data streaming fails.
+    /// Decode failures surface as `Err(Error::StreamDecodeError(...))`
+    /// items and do NOT abort the stream — the decoder continues reading
+    /// subsequent frames. Peer-initiated `Close` frames terminate the
+    /// stream without yielding an error. `Ping` frames are answered
+    /// automatically by `tokio_tungstenite`; if the automatic pong send
+    /// fails, the failure is surfaced as `Err(Error::WebSocketError(...))`
+    /// and the stream terminates.
     ///
-    /// # Behavior
-    /// - Connects to the WebSocket endpoint.
-    /// - Sends the specified `MarketSessionPayload`.
-    /// - Listens for incoming messages and logs text or binary data.
-    /// - Terminates on connection close or error.
-    pub async fn ws_stream(&self, payload: MarketSessionPayload<'a>) -> Result<()> {
-        let uri = &self.0.stream_info.url;
+    /// Reconnect policy is the caller's responsibility — see the example
+    /// under `examples/auth_websocket_example.rs`.
+    ///
+    /// # Errors
+    /// - [`Error::UrlParsingError`] if the session URL is malformed.
+    /// - [`Error::WebSocketError`] if the handshake or initial payload
+    ///   send fails.
+    /// - [`Error::JsonParsingError`] if the subscription payload cannot
+    ///   be serialized.
+    ///
+    /// After the stream is established, per-frame errors are yielded as
+    /// `Err(_)` items of the stream rather than aborting early.
+    pub async fn event_stream(
+        &self,
+        payload: MarketSessionPayload<'a>,
+    ) -> Result<impl Stream<Item = Result<MarketEvent>>> {
+        let uri = self.0.get_websocket_url();
         let url = Url::parse(uri)?;
 
-        info!("Connecting to: {}", uri);
+        info!(url = %uri, "connecting to market stream");
         let (ws_stream, _) = connect_async(url.as_str()).await.map_err(Box::new)?;
-        let (mut write, mut read) = ws_stream.split();
+        let (mut write, read) = ws_stream.split();
 
         let message = payload.get_message()?;
         write.send(message).await.map_err(Box::new)?;
-        info!("Sent payload: {}", payload);
+        debug!("sent market subscription payload");
 
-        while let Some(message) = read.next().await {
-            match message {
-                Ok(Message::Text(text)) => {
-                    info!("Received: {}", text);
+        Ok(market_event_stream(read))
+    }
+
+    /// Initiates a WebSocket connection and streams data based on the provided payload.
+    ///
+    /// Kept for back-compat — internally drives [`Self::event_stream`] and
+    /// logs each parsed event at `TRACE`, each decode error at `WARN`.
+    /// Prefer [`Self::event_stream`] for new code.
+    ///
+    /// # Errors
+    /// Same as [`Self::event_stream`].
+    pub async fn ws_stream(&self, payload: MarketSessionPayload<'a>) -> Result<()> {
+        let stream = self.event_stream(payload).await?;
+        futures_util::pin_mut!(stream);
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok(event) => {
+                    trace!(symbol = event.symbol(), "market event");
                 }
-                Ok(Message::Binary(data)) => {
-                    info!("Received binary data: {} bytes", data.len());
-                    // Handle binary data as needed
-                }
-                Ok(Message::Close(frame)) => {
-                    info!("Connection closed: {:?}", frame);
-                    break;
+                Err(Error::StreamDecodeError(_, err)) => {
+                    warn!(error = %err, "decode failure on market frame, continuing");
                 }
                 Err(e) => {
-                    error!("Error: {}", e);
-                    break;
+                    warn!(error = %e, "market stream error, terminating");
+                    return Err(e);
                 }
-                _ => {}
             }
         }
-
         Ok(())
     }
+}
+
+/// Internal newline-delimited [`MarketEvent`] decoder over a split
+/// WebSocket read half.
+///
+/// Text frames are split on `\n`, each non-empty line is decoded into a
+/// [`MarketEvent`]. Decode errors are yielded as `Err(_)` items but do
+/// not terminate the stream. `Close` frames end the stream cleanly.
+#[inline]
+fn market_event_stream<S>(read: S) -> impl Stream<Item = Result<MarketEvent>>
+where
+    S: Stream<Item = std::result::Result<Message, tungstenite::Error>> + Unpin,
+{
+    super::ws_decode::ws_event_stream(read, MarketEvent::from_json)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        utils::tests::{create_test_config, mock_websocket_server},
+        utils::tests::{
+            create_test_config, free_tcp_port, mock_websocket_server, scripted_websocket_server,
+            ScriptedWsAction,
+        },
         wssession::session_manager::SessionManager,
     };
 
@@ -521,5 +564,200 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ===== event_stream tests =====
+    //
+    // These tests stand up a scripted local WebSocket server (no TLS) and
+    // exercise the real framing through `MarketSession::event_stream`.
+
+    const QUOTE_FRAME: &str = r#"{"type":"quote","symbol":"C","bid":281.84,"bidsz":60,"bidexch":"M","biddate":"1557757189000","ask":281.85,"asksz":6,"askexch":"Z","askdate":"1557757190000"}"#;
+    const TRADE_FRAME: &str = r#"{"type":"trade","symbol":"SPY","exch":"Q","price":"281.1200","size":"100","cvol":"34507070","date":"1557757204760","last":"281.1200"}"#;
+    const SUMMARY_FRAME: &str = r#"{"type":"summary","symbol":"SPY","open":"284.01","high":"284.42","low":"280.51","prevClose":"287.59"}"#;
+    const TIMESALE_FRAME: &str = r#"{"type":"timesale","symbol":"SPY","exch":"Q","bid":"281.09","ask":"281.10","last":"281.10","size":"100","date":"1557757204760","seq":352342,"flag":"","cancel":false,"correction":false,"session":"normal"}"#;
+    const TRADEX_FRAME: &str = r#"{"type":"tradex","symbol":"SPY","exch":"Q","price":"281.10","size":"100","cvol":"34507070","date":"1557757204760","last":"281.10"}"#;
+    const MALFORMED_FRAME: &str = r#"{"type":"quote","symbol":"C","bid": not-json"#;
+
+    /// Boots a market session wired to a leaked `SessionManager` and
+    /// `Config` so the returned session satisfies `'static`. Leaking is
+    /// acceptable here — each test is short-lived and owns its own
+    /// `SessionManager`, so there is no cross-test contention.
+    async fn build_market_session_against_port(port: u16) -> MarketSession<'static> {
+        let server = Box::leak(Box::new(Server::new_async().await));
+        let json_data = format!(
+            r#"
+        {{
+            "stream": {{
+                "url": "ws://127.0.0.1:{port}/v1/markets/events",
+                "sessionid": "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+            }}
+        }}
+        "#
+        );
+        server
+            .mock("POST", "/v1/markets/events/session")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(json_data)
+            .create_async()
+            .await;
+
+        let config = Box::leak(Box::new(
+            create_test_config().server_url(&server.url()).finish(),
+        ));
+        let session_manager: &'static SessionManager =
+            Box::leak(Box::new(SessionManager::default()));
+        MarketSession::new_with_session_manager(config, session_manager)
+            .await
+            .expect("market session")
+    }
+
+    #[tokio::test]
+    async fn test_market_event_stream_yields_typed_events_in_order() {
+        let port = free_tcp_port();
+        let session = build_market_session_against_port(port).await;
+
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendText(QUOTE_FRAME),
+                ScriptedWsAction::SendText(TRADE_FRAME),
+                ScriptedWsAction::SendText(SUMMARY_FRAME),
+                ScriptedWsAction::SendText(TIMESALE_FRAME),
+                ScriptedWsAction::SendText(TRADEX_FRAME),
+                ScriptedWsAction::SendClose,
+            ],
+            |_subscription_json| {},
+        )
+        .await;
+
+        let symbols = ["SPY".to_string()];
+        let payload = MarketSessionPayload::builder()
+            .symbols(&symbols)
+            .session_id(session.get_session_id())
+            .build();
+
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<MarketEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 5, "expected 5 events, got {collected:?}");
+        assert!(matches!(collected[0], Ok(MarketEvent::Quote(_))));
+        assert!(matches!(collected[1], Ok(MarketEvent::Trade(_))));
+        assert!(matches!(collected[2], Ok(MarketEvent::Summary(_))));
+        assert!(matches!(collected[3], Ok(MarketEvent::Timesale(_))));
+        assert!(matches!(collected[4], Ok(MarketEvent::Tradex(_))));
+    }
+
+    #[tokio::test]
+    async fn test_market_event_stream_malformed_frame_yields_decode_error_and_continues() {
+        let port = free_tcp_port();
+        let session = build_market_session_against_port(port).await;
+
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendText(QUOTE_FRAME),
+                ScriptedWsAction::SendText(MALFORMED_FRAME),
+                ScriptedWsAction::SendText(TRADE_FRAME),
+                ScriptedWsAction::SendClose,
+            ],
+            |_sub| {},
+        )
+        .await;
+
+        let symbols = ["SPY".to_string()];
+        let payload = MarketSessionPayload::builder()
+            .symbols(&symbols)
+            .session_id(session.get_session_id())
+            .build();
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<MarketEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 3, "expected 3 items, got {collected:?}");
+        assert!(matches!(collected[0], Ok(MarketEvent::Quote(_))));
+        assert!(matches!(collected[1], Err(Error::StreamDecodeError(_, _))));
+        assert!(matches!(collected[2], Ok(MarketEvent::Trade(_))));
+    }
+
+    #[tokio::test]
+    async fn test_market_event_stream_multiple_events_per_frame_decoded_individually() {
+        let port = free_tcp_port();
+        let session = build_market_session_against_port(port).await;
+
+        // Two events on one line, separated by `\n`.
+        let compound = Box::leak(format!("{}\n{}", QUOTE_FRAME, TRADE_FRAME).into_boxed_str());
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendText(compound),
+                ScriptedWsAction::SendClose,
+            ],
+            |_sub| {},
+        )
+        .await;
+
+        let symbols = ["SPY".to_string()];
+        let payload = MarketSessionPayload::builder()
+            .symbols(&symbols)
+            .session_id(session.get_session_id())
+            .build();
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<MarketEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 2);
+        assert!(matches!(collected[0], Ok(MarketEvent::Quote(_))));
+        assert!(matches!(collected[1], Ok(MarketEvent::Trade(_))));
+    }
+
+    #[tokio::test]
+    async fn test_market_event_stream_peer_close_terminates_without_error() {
+        let port = free_tcp_port();
+        let session = build_market_session_against_port(port).await;
+
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendText(QUOTE_FRAME),
+                ScriptedWsAction::SendClose,
+            ],
+            |_sub| {},
+        )
+        .await;
+
+        let symbols = ["SPY".to_string()];
+        let payload = MarketSessionPayload::builder()
+            .symbols(&symbols)
+            .session_id(session.get_session_id())
+            .build();
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<MarketEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 1);
+        assert!(collected[0].is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_market_event_stream_ping_is_answered_and_does_not_yield_an_item() {
+        let port = free_tcp_port();
+        let session = build_market_session_against_port(port).await;
+
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendPing(b"hello"),
+                ScriptedWsAction::SendText(QUOTE_FRAME),
+                ScriptedWsAction::SendClose,
+            ],
+            |_sub| {},
+        )
+        .await;
+
+        let symbols = ["SPY".to_string()];
+        let payload = MarketSessionPayload::builder()
+            .symbols(&symbols)
+            .session_id(session.get_session_id())
+            .build();
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<MarketEvent>> = stream.collect().await;
+        // The ping does not surface as a user-visible item; only the
+        // quote does.
+        assert_eq!(collected.len(), 1);
+        assert!(matches!(collected[0], Ok(MarketEvent::Quote(_))));
     }
 }

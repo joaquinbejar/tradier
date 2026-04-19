@@ -139,6 +139,98 @@ pub(crate) async fn mock_websocket_server(
     });
 }
 
+/// Scripted actions a mock WebSocket server can play against a client,
+/// in order. Designed for tests of the event-stream decoders under
+/// `wssession::market` and `wssession::account`.
+#[cfg(test)]
+#[derive(Clone, Debug)]
+#[allow(clippy::enum_variant_names)]
+pub(crate) enum ScriptedWsAction {
+    /// Send a single `Message::Text` frame with this payload.
+    SendText(&'static str),
+    /// Send a `Message::Ping` frame (server-initiated).
+    SendPing(&'static [u8]),
+    /// Send a `Message::Close` frame with `CloseCode::Normal`.
+    SendClose,
+}
+
+/// Minimal scripted WebSocket server for event-stream tests.
+///
+/// The server:
+/// - Accepts one client connection on `address`.
+/// - Reads the client's subscription frame and hands it to
+///   `on_subscription` (which may assert on the payload).
+/// - Replays `script` in order and then ends the task.
+///
+/// Tests pick a port with [`free_tcp_port`] so they can run in parallel.
+#[cfg(test)]
+pub(crate) async fn scripted_websocket_server<F>(
+    address: (&'static str, u16),
+    script: Vec<ScriptedWsAction>,
+    on_subscription: F,
+) where
+    F: FnOnce(&str) + Send + 'static,
+{
+    let listener = TcpListener::bind(address).await.expect("bind mock ws");
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.expect("accept mock ws");
+        let mut websocket = accept_async(stream).await.expect("ws handshake");
+
+        // Drain the subscription frame.
+        match websocket.next().await {
+            Some(Ok(Message::Text(msg))) => on_subscription(msg.as_ref()),
+            other => panic!("expected subscription text frame, got {other:?}"),
+        }
+
+        for action in script {
+            match action {
+                ScriptedWsAction::SendText(payload) => {
+                    websocket
+                        .send(Message::Text(payload.into()))
+                        .await
+                        .expect("send text");
+                }
+                ScriptedWsAction::SendPing(payload) => {
+                    websocket
+                        .send(Message::Ping(payload.to_vec().into()))
+                        .await
+                        .expect("send ping");
+                    // Let tokio-tungstenite push the pong back. We
+                    // consume one frame so the peer's pong does not
+                    // show up as a surprise when we next read.
+                    match websocket.next().await {
+                        Some(Ok(Message::Pong(_))) => {}
+                        Some(Ok(other)) => panic!("expected pong, got {other:?}"),
+                        Some(Err(e)) => panic!("ws error waiting for pong: {e}"),
+                        None => panic!("connection closed waiting for pong"),
+                    }
+                }
+                ScriptedWsAction::SendClose => {
+                    websocket
+                        .close(Some(CloseFrame {
+                            code: CloseCode::Normal,
+                            reason: "done".into(),
+                        }))
+                        .await
+                        .expect("send close");
+                }
+            }
+        }
+    });
+}
+
+/// Reserves an unused local TCP port by binding to `127.0.0.1:0` and
+/// dropping the listener. Good enough for hermetic tests — the window
+/// where the port could be reclaimed is tiny and the test owns the
+/// process.
+#[cfg(test)]
+pub(crate) fn free_tcp_port() -> u16 {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind to ephemeral port");
+    let port = listener.local_addr().expect("local addr").port();
+    drop(listener);
+    port
+}
+
 #[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
 pub struct DateTimeUtcWire(#[proptest(strategy = "arb_date_time_strategy()")] DateTime<Utc>);
 

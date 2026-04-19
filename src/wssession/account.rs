@@ -61,13 +61,15 @@
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
+use futures_util::stream::Stream;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::connect_async;
-use tracing::{error, info};
+use tracing::{debug, info, trace, warn};
 use tungstenite::Message;
 use url::Url;
 
+use crate::wssession::account_events::AccountEvent;
 use crate::wssession::session::{Session, SessionType};
 use crate::Config;
 use crate::{Error, Result};
@@ -292,47 +294,81 @@ impl<'a> AccountSession<'a> {
         self.0.get_websocket_url()
     }
 
-    /// Opens the account WebSocket, sends the payload, and streams events
-    /// until the peer closes the connection or an error occurs.
+    /// Opens the account WebSocket and returns an async [`Stream`] of
+    /// typed [`AccountEvent`] values.
+    ///
+    /// Each upstream text frame is split on `\n` so a single frame that
+    /// bundles multiple newline-delimited JSON events still decodes as
+    /// separate items.
+    ///
+    /// Decode failures surface as `Err(Error::StreamDecodeError(...))`
+    /// items and do NOT abort the stream. Peer-initiated `Close` ends
+    /// the stream without yielding an error. `Ping` frames are answered
+    /// automatically by `tokio_tungstenite`.
+    ///
+    /// Reconnect policy is the caller's responsibility.
     ///
     /// # Errors
     /// - [`Error::UrlParsingError`] if the session URL is invalid.
-    /// - [`Error::WebSocketError`] if the handshake, send, or receive fails.
-    /// - [`Error::JsonParsingError`] if the payload cannot be serialized.
+    /// - [`Error::WebSocketError`] if the handshake or initial payload
+    ///   send fails.
+    /// - [`Error::JsonParsingError`] if the subscription payload cannot
+    ///   be serialized.
     ///
-    /// Reconnect policy is the caller's responsibility.
-    pub async fn ws_stream(&self, payload: AccountSessionPayload<'a>) -> Result<()> {
+    /// After the stream is established, per-frame errors are yielded as
+    /// `Err(_)` items of the stream rather than aborting early.
+    pub async fn event_stream(
+        &self,
+        payload: AccountSessionPayload<'a>,
+    ) -> Result<impl Stream<Item = Result<AccountEvent>>> {
         let uri = self.0.get_websocket_url();
         let url = Url::parse(uri)?;
 
-        info!(url = %uri, "Connecting to account stream");
+        info!(url = %uri, "connecting to account stream");
         let (ws_stream, _) = connect_async(url.as_str()).await.map_err(Box::new)?;
-        let (mut write, mut read) = ws_stream.split();
+        let (mut write, read) = ws_stream.split();
 
         let message = payload.get_message()?;
         write.send(message).await.map_err(Box::new)?;
-        info!("Sent account session payload");
+        debug!("sent account subscription payload");
 
-        while let Some(message) = read.next().await {
-            match message {
-                Ok(Message::Text(text)) => {
-                    info!(bytes = text.len(), "account event text");
+        Ok(super::ws_decode::ws_event_stream(
+            read,
+            AccountEvent::from_json,
+        ))
+    }
+
+    /// Opens the account WebSocket, sends the payload, and streams events
+    /// until the peer closes the connection or an error occurs.
+    ///
+    /// Kept for back-compat — internally drives [`Self::event_stream`]
+    /// and logs each parsed event at `TRACE`, each decode error at
+    /// `WARN`. Prefer [`Self::event_stream`] for new code.
+    ///
+    /// # Errors
+    /// Same as [`Self::event_stream`].
+    pub async fn ws_stream(&self, payload: AccountSessionPayload<'a>) -> Result<()> {
+        let stream = self.event_stream(payload).await?;
+        futures_util::pin_mut!(stream);
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok(event) => {
+                    // Do not log the account number in clear — record only
+                    // whether it was present on the event.
+                    trace!(
+                        has_account = event.account_number().is_some(),
+                        "account event"
+                    );
                 }
-                Ok(Message::Binary(data)) => {
-                    info!(bytes = data.len(), "account event binary");
-                }
-                Ok(Message::Close(frame)) => {
-                    info!(?frame, "account stream closed");
-                    break;
+                Err(Error::StreamDecodeError(_, err)) => {
+                    warn!(error = %err, "decode failure on account frame, continuing");
                 }
                 Err(e) => {
-                    error!(error = %e, "account stream read error");
-                    return Err(Error::WebSocketError(Box::new(e)));
+                    warn!(error = %e, "account stream error, terminating");
+                    return Err(e);
                 }
-                _ => {}
             }
         }
-
         Ok(())
     }
 }
@@ -342,7 +378,12 @@ mod tests {
     use mockito::Server;
 
     use super::*;
-    use crate::{utils::tests::create_test_config, wssession::session_manager::SessionManager};
+    use crate::{
+        utils::tests::{
+            create_test_config, free_tcp_port, scripted_websocket_server, ScriptedWsAction,
+        },
+        wssession::session_manager::SessionManager,
+    };
 
     #[test]
     fn test_account_session_event_as_ref() {
@@ -441,5 +482,141 @@ mod tests {
             );
         }
         mock.assert_async().await;
+    }
+
+    // ===== event_stream tests =====
+
+    const ORDER_FRAME: &str = r#"{"event":"order","id":123,"status":"filled","account_number":"VA1234","symbol":"SPY","quantity":100.0,"executed_quantity":100.0}"#;
+    const FILL_FRAME: &str = r#"{"event":"fill","order_id":123,"account_number":"VA1234","symbol":"SPY","side":"buy","quantity":100.0,"price":281.12}"#;
+    const POSITION_FRAME: &str = r#"{"event":"position","account_number":"VA1234","symbol":"SPY","quantity":100.0,"cost_basis":28112.0}"#;
+    const BALANCE_FRAME: &str = r#"{"event":"balance","account_number":"VA1234","total_equity":100000.0,"total_cash":50000.0}"#;
+    const TRADE_FRAME: &str = r#"{"event":"trade","account_number":"VA1234","symbol":"SPY","side":"buy","quantity":100.0,"price":281.12}"#;
+    const DROP_FRAME: &str =
+        r#"{"event":"drop","account_number":"VA1234","reason":"session expired"}"#;
+    const MALFORMED_FRAME: &str = r#"{"event":"order","id":123,"status":"#;
+
+    /// Boots an account session wired to a leaked `SessionManager` and
+    /// `Config` so the returned session satisfies `'static`.
+    async fn build_account_session_against_port(port: u16) -> AccountSession<'static> {
+        let server = Box::leak(Box::new(Server::new_async().await));
+        let json_data = format!(
+            r#"
+        {{
+            "stream": {{
+                "url": "ws://127.0.0.1:{port}/v1/accounts/events",
+                "sessionid": "c8638963-a6d4-4fb9-9bc6-e25fbd8c60c3"
+            }}
+        }}
+        "#
+        );
+        server
+            .mock("POST", "/v1/accounts/events/session")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(json_data)
+            .create_async()
+            .await;
+
+        let config = Box::leak(Box::new(
+            create_test_config().server_url(&server.url()).finish(),
+        ));
+        let session_manager: &'static SessionManager =
+            Box::leak(Box::new(SessionManager::default()));
+        AccountSession::new_with_session_manager(config, session_manager)
+            .await
+            .expect("account session")
+    }
+
+    #[tokio::test]
+    async fn test_account_event_stream_yields_typed_events_in_order() {
+        let port = free_tcp_port();
+        let session = build_account_session_against_port(port).await;
+
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendText(ORDER_FRAME),
+                ScriptedWsAction::SendText(FILL_FRAME),
+                ScriptedWsAction::SendText(POSITION_FRAME),
+                ScriptedWsAction::SendText(BALANCE_FRAME),
+                ScriptedWsAction::SendText(TRADE_FRAME),
+                ScriptedWsAction::SendText(DROP_FRAME),
+                ScriptedWsAction::SendClose,
+            ],
+            |_sub| {},
+        )
+        .await;
+
+        let events = [AccountSessionEvent::Order];
+        let payload = AccountSessionPayload::builder()
+            .events(&events)
+            .session_id(session.get_session_id())
+            .build();
+
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<AccountEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 6, "expected 6 events, got {collected:?}");
+        assert!(matches!(collected[0], Ok(AccountEvent::Order(_))));
+        assert!(matches!(collected[1], Ok(AccountEvent::Fill(_))));
+        assert!(matches!(collected[2], Ok(AccountEvent::Position(_))));
+        assert!(matches!(collected[3], Ok(AccountEvent::Balance(_))));
+        assert!(matches!(collected[4], Ok(AccountEvent::Trade(_))));
+        assert!(matches!(collected[5], Ok(AccountEvent::Drop(_))));
+    }
+
+    #[tokio::test]
+    async fn test_account_event_stream_malformed_frame_yields_decode_error_and_continues() {
+        let port = free_tcp_port();
+        let session = build_account_session_against_port(port).await;
+
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendText(ORDER_FRAME),
+                ScriptedWsAction::SendText(MALFORMED_FRAME),
+                ScriptedWsAction::SendText(FILL_FRAME),
+                ScriptedWsAction::SendClose,
+            ],
+            |_sub| {},
+        )
+        .await;
+
+        let events = [AccountSessionEvent::Order];
+        let payload = AccountSessionPayload::builder()
+            .events(&events)
+            .session_id(session.get_session_id())
+            .build();
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<AccountEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 3, "expected 3 items, got {collected:?}");
+        assert!(matches!(collected[0], Ok(AccountEvent::Order(_))));
+        assert!(matches!(collected[1], Err(Error::StreamDecodeError(_, _))));
+        assert!(matches!(collected[2], Ok(AccountEvent::Fill(_))));
+    }
+
+    #[tokio::test]
+    async fn test_account_event_stream_peer_close_terminates_without_error() {
+        let port = free_tcp_port();
+        let session = build_account_session_against_port(port).await;
+
+        scripted_websocket_server(
+            ("127.0.0.1", port),
+            vec![
+                ScriptedWsAction::SendText(ORDER_FRAME),
+                ScriptedWsAction::SendClose,
+            ],
+            |_sub| {},
+        )
+        .await;
+
+        let events = [AccountSessionEvent::Order];
+        let payload = AccountSessionPayload::builder()
+            .events(&events)
+            .session_id(session.get_session_id())
+            .build();
+        let stream = session.event_stream(payload).await.expect("event_stream");
+        let collected: Vec<Result<AccountEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 1);
+        assert!(collected[0].is_ok());
     }
 }
