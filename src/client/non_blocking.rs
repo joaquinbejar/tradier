@@ -44,6 +44,21 @@ impl TradierRestClient {
             .ok_or(Error::MissingAccessToken)
     }
 
+    /// Returns a reference to the pooled `reqwest::Client` so that
+    /// sibling crates (notably `streaming::http_stream`) can reuse the
+    /// same HTTP/TLS pool instead of constructing a new client per
+    /// stream.
+    #[inline]
+    pub(crate) fn http_client(&self) -> &reqwest::Client {
+        &self.http_client
+    }
+
+    /// Returns a reference to the [`Config`] this client was built with.
+    #[inline]
+    pub(crate) fn http_client_config(&self) -> &Config {
+        &self.http_client_config
+    }
+
     pub async fn make_service_call(
         &self,
         url: Url,
