@@ -48,6 +48,13 @@ pub enum Error {
     #[error("Unsupported MarketSessionFilter: {0}")]
     UnsupportedMarketFilter(String),
 
+    /// Error if an unsupported AccountSessionEvent is encountered.
+    ///
+    /// # Parameters
+    /// - `String`: The offending event string from the wire.
+    #[error("Unsupported AccountSessionEvent: {0}")]
+    UnsupportedAccountEvent(String),
+
     /// Error when JSON parsing fails while handling session response data.
     ///
     /// # Source

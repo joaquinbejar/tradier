@@ -27,5 +27,5 @@ mod market;
 pub(crate) mod session;
 pub(crate) mod session_manager;
 
-pub use account::AccountSession;
+pub use account::{AccountSession, AccountSessionEvent, AccountSessionPayload};
 pub use market::{MarketSession, MarketSessionFilter, MarketSessionPayload};
