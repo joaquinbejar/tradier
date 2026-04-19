@@ -1,6 +1,7 @@
 use crate::accounts::types::{
     AccountNumber, EventType, GainLossSortBy, GetAccountBalancesResponse,
-    GetAccountGainLossResponse, GetAccountHistoryResponse, Limit, Page,
+    GetAccountGainLossResponse, GetAccountHistoryResponse, GetAccountOrdersResponse, IncludeTags,
+    Limit, Page,
 };
 use crate::common::SortOrder;
 use crate::types::GetAccountPositionsResponse;
@@ -37,6 +38,14 @@ pub mod non_blocking {
             sort_by: Option<GainLossSortBy>,
             sort_order: Option<SortOrder>,
         ) -> Result<GetAccountGainLossResponse>;
+
+        async fn get_account_orders(
+            &self,
+            account_number: &AccountNumber,
+            page: &Page,
+            limit: &Limit,
+            include_tags: &IncludeTags,
+        ) -> Result<GetAccountOrdersResponse>;
     }
 }
 pub mod blocking {
@@ -69,5 +78,13 @@ pub mod blocking {
             sort_by: Option<GainLossSortBy>,
             sort_order: Option<SortOrder>,
         ) -> Result<GetAccountGainLossResponse>;
+
+        fn get_account_orders(
+            &self,
+            account_number: &AccountNumber,
+            page: &Page,
+            limit: &Limit,
+            include_tags: &IncludeTags,
+        ) -> Result<GetAccountOrdersResponse>;
     }
 }

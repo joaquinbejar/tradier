@@ -48,6 +48,7 @@ pub struct PositionWire {
     quantity: f64,
     symbol: String,
 }
+
 #[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
 pub struct GetAccountPositionsResponseWire {
     positions: Vec<PositionWire>,
@@ -129,6 +130,134 @@ pub enum EventTypeWire {
     Adjustment,
 }
 
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderTypeWire {
+    Market,
+    Limit,
+    Stop,
+    StopLimit,
+    Debit,
+    Credit,
+    Even,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderSideWire {
+    Buy,
+    BuyToCover,
+    Sell,
+    SellShort,
+    BuyToOpen,
+    BuyToClose,
+    SellToOpen,
+    SellToClose,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderStatusWire {
+    Pending,
+    Open,
+    PartiallyFilled,
+    Filled,
+    Expired,
+    Canceled,
+    Rejected,
+    PendingCancel,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderDurationWire {
+    Day,
+    Gtc,
+    Pre,
+    Post,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+#[serde(rename_all = "lowercase")]
+pub enum OrderClassWire {
+    Equity,
+    Option,
+    Multileg,
+    Combo,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct OrderLegWire {
+    id: u32,
+    #[serde(rename = "type")]
+    order_type: OrderTypeWire,
+    symbol: String,
+    side: OrderSideWire,
+    quantity: f64,
+    status: OrderStatusWire,
+    duration: OrderDurationWire,
+    avg_fill_price: f64,
+    exec_quantity: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remaining_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    option_symbol: Option<String>,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct OrderWire {
+    id: u32,
+    #[serde(rename = "type")]
+    order_type: OrderTypeWire,
+    symbol: String,
+    side: OrderSideWire,
+    quantity: f64,
+    status: OrderStatusWire,
+    duration: OrderDurationWire,
+    avg_fill_price: f64,
+    exec_quantity: f64,
+    create_date: DateTimeUtcWire,
+    transaction_date: DateTimeUtcWire,
+    class: OrderClassWire,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remaining_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    option_symbol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    num_legs: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    strategy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    leg: Option<Vec<OrderLegWire>>,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct AccountOrdersWire {
+    order: Vec<OrderWire>,
+    #[proptest(strategy = "1..u32::MAX")]
+    page: u32,
+    #[proptest(strategy = "1..u32::MAX")]
+    total_pages: u32,
+    total_orders: u32,
+}
+
+#[derive(Debug, Serialize, proptest_derive::Arbitrary)]
+pub struct GetAccountOrdersResponseWire {
+    orders: AccountOrdersWire,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -146,17 +275,25 @@ mod test {
         "/src/accounts/get_account_history_schema.json"
     );
 
-    #[test]
-    fn empty_gainloss_object_should_fail_schema_validation() {
+    static ORDERS_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/accounts/get_account_orders_schema.json"
+    );
+
+    fn load_validator(path: &str) -> jsonschema::Validator {
         let reader = OpenOptions::new()
             .read(true)
-            .open(GAINLOSS_PATH)
+            .open(path)
             .expect("schema file to exist and be readable");
         let reader = std::io::BufReader::new(reader);
         let schema: Value =
             serde_json::from_reader(reader).expect("parsing the schema as a Value object to work");
-        let validator =
-            jsonschema::validator_for(&schema).expect("validator in test to work as expected");
+        jsonschema::validator_for(&schema).expect("validator in test to work as expected")
+    }
+
+    #[test]
+    fn empty_gainloss_object_should_fail_schema_validation() {
+        let validator = load_validator(GAINLOSS_PATH);
         assert!(!validator.is_valid(
             &serde_json::to_value(json!({})).expect("serde to serialize the object correctly")
         ));
@@ -164,15 +301,15 @@ mod test {
 
     #[test]
     fn empty_history_object_should_fail_schema_validation() {
-        let reader = OpenOptions::new()
-            .read(true)
-            .open(HISTORY_PATH)
-            .expect("schema file to exist and be readable");
-        let reader = std::io::BufReader::new(reader);
-        let schema: Value =
-            serde_json::from_reader(reader).expect("parsing the schema as a Value object to work");
-        let validator =
-            jsonschema::validator_for(&schema).expect("validator in test to work as expected");
+        let validator = load_validator(HISTORY_PATH);
+        assert!(!validator.is_valid(
+            &serde_json::to_value(json!({})).expect("serde to serialize the object correctly")
+        ));
+    }
+
+    #[test]
+    fn empty_orders_object_should_fail_schema_validation() {
+        let validator = load_validator(ORDERS_PATH);
         assert!(!validator.is_valid(
             &serde_json::to_value(json!({})).expect("serde to serialize the object correctly")
         ));
@@ -183,15 +320,7 @@ mod test {
         fn serialized_gainloss_wire_objects_should_conform_to_schema(
             wire in any::<GetAccountGainLossResponseWire>()
         ) {
-            let reader = OpenOptions::new()
-                .read(true)
-                .open(GAINLOSS_PATH)
-                .expect("schema file to exist and be readable");
-            let reader = std::io::BufReader::new(reader);
-            let schema: Value = serde_json::from_reader(reader)
-                .expect("parsing the schema as a Value object to work");
-            let validator = jsonschema::validator_for(&schema)
-                .expect("validator in test to work as expected");
+            let validator = load_validator(GAINLOSS_PATH);
             let actual_serialized_value = serde_json::to_value(&wire)
                 .expect("serde to serialize the object correctly");
             prop_assert!(validator.is_valid(&actual_serialized_value));
@@ -201,15 +330,23 @@ mod test {
         fn serialized_history_wire_objects_should_conform_to_schema(
             wire_object in any::<GetAccountHistoryResponseWire>()
         ) {
-            let reader = OpenOptions::new()
-                .read(true)
-                .open(HISTORY_PATH)
-                .expect("schema file to exist and be readable");
-            let reader = std::io::BufReader::new(reader);
-            let schema: Value = serde_json::from_reader(reader)
-                .expect("parsing the schema as a Value object to work");
-            let validator = jsonschema::validator_for(&schema)
-                .expect("validator in test to work as expected");
+            let validator = load_validator(HISTORY_PATH);
+            let actual_serialized_value = serde_json::to_value(&wire_object)
+                .expect("serde to serialize the object correctly");
+            prop_assert!(validator.is_valid(&actual_serialized_value));
+        }
+    }
+
+    // Reduced case count: OrderWire is deeply nested and the default 256 cases
+    // exceed tarpaulin's timeout budget under instrumentation.
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(32))]
+
+        #[test]
+        fn serialized_orders_wire_objects_should_conform_to_schema(
+            wire_object in any::<GetAccountOrdersResponseWire>()
+        ) {
+            let validator = load_validator(ORDERS_PATH);
             let actual_serialized_value = serde_json::to_value(&wire_object)
                 .expect("serde to serialize the object correctly");
             prop_assert!(validator.is_valid(&actual_serialized_value));
