@@ -9,16 +9,28 @@
 //! ## Overview
 //!
 //! - **`AccountSession`**: Manages WebSocket sessions for streaming account-related events, such as
-//!   order status updates and balance changes.
+//!   order status updates and balance changes. Use
+//!   [`AccountSession::event_stream`] for a typed [`AccountEvent`] stream.
 //! - **`MarketSession`**: Handles WebSocket sessions for streaming market data, including real-time
-//!   quotes and trades.
+//!   quotes and trades. Use [`MarketSession::event_stream`] for a typed
+//!   [`MarketEvent`] stream.
 //! - **`SessionManager`**: Ensures that only one streaming session is active at any given time, adhering
 //!   to Tradier's limitation of a single concurrent session per user.
+//!
+//! ## HTTP streaming fallback
+//!
+//! When WebSockets are not reachable (strict corporate egress, NAT
+//! timeouts, …), Tradier also exposes a parallel **HTTP** chunked
+//! streaming API. See [`crate::streaming::http_stream`] for
+//! `Stream`-returning helpers that reuse the pooled `reqwest::Client`
+//! on a [`crate::client::non_blocking::TradierRestClient`].
 //!
 //! ## Usage
 //!
 //! By utilizing these components, developers can integrate Tradier's streaming capabilities into
-//! their applications, facilitating real-time data processing and event handling.
+//! their applications, facilitating real-time data processing and event handling. Reconnection is
+//! the caller's responsibility — the library exposes the session id, subscription payload, and
+//! the stream itself; the caller drives the retry loop.
 
 mod account;
 pub mod account_events;

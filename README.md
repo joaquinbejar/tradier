@@ -182,6 +182,51 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
+### HTTP streaming
+
+When WebSockets are not reachable (strict corporate egress, aggressive
+NAT timeouts, …) the same event stream is available over HTTP
+chunked transfer. The helpers under `tradier::streaming::http_stream`
+reuse the pooled `reqwest::Client` on the existing REST client, so
+there is no extra connection pool to configure.
+
+```rust,no_run
+use futures_util::StreamExt;
+use tradier::non_blocking::Client;
+use tradier::streaming::http_stream;
+use tradier::wssession::MarketSession;
+use tradier::Config;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = Config::new();
+    let rest = Client::new(config.clone());
+
+    // Bootstrap a session id the usual way.
+    let session = MarketSession::new(&config).await?;
+    let symbols = ["AAPL".to_string(), "MSFT".to_string()];
+
+    let events =
+        http_stream::market_events(&rest, session.get_session_id(), &symbols, None, None, None, None)
+            .await?;
+    futures_util::pin_mut!(events);
+    while let Some(event) = events.next().await {
+        match event {
+            Ok(e) => println!("event: {:?}", e),
+            Err(e) => eprintln!("stream error: {e}"),
+        }
+    }
+    Ok(())
+}
+```
+
+A matching `http_stream::account_events` helper streams
+`AccountEvent` values. Both helpers surface non-2xx responses as
+`Error::NetworkError` and per-line decode failures as
+`Error::StreamDecodeError` without aborting the stream.
+
+See `examples/http_stream_market/main.rs` for a runnable demo.
+
 ## Development
 
 This project includes a Makefile for common development tasks:
