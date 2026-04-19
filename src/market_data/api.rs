@@ -9,9 +9,9 @@ use crate::market_data::types::{
     CalendarMonth, CalendarYear, DelayedFlag, Exchanges, GetCalendarResponse, GetClockResponse,
     GetEtbSecuritiesResponse, GetHistoricalQuotesResponse, GetOptionChainsResponse,
     GetOptionExpirationsResponse, GetOptionStrikesResponse, GetQuotesResponse,
-    GetTimeAndSalesResponse, Greeks, HistoryInterval, IncludeAllRoots, IncludeStrikes,
-    IndexesFlag, LookupOptionSymbolsResponse, LookupSymbolResponse, SearchCompaniesResponse,
-    SecurityTypes, SessionFilter, Symbol, Symbols, TimeSalesInterval,
+    GetTimeAndSalesResponse, Greeks, HistoryInterval, IncludeAllRoots, IncludeStrikes, IndexesFlag,
+    LookupOptionSymbolsResponse, LookupSymbolResponse, SearchCompaniesResponse, SecurityTypes,
+    SessionFilter, Symbol, Symbols, TimeSalesInterval,
 };
 use crate::{error::Result, utils::Sealed};
 
@@ -214,10 +214,8 @@ pub mod blocking {
         ///
         /// # Errors
         /// See [`super::non_blocking::MarketData::lookup_option_symbols`].
-        fn lookup_option_symbols(
-            &self,
-            underlying: &Symbol,
-        ) -> Result<LookupOptionSymbolsResponse>;
+        fn lookup_option_symbols(&self, underlying: &Symbol)
+            -> Result<LookupOptionSymbolsResponse>;
 
         /// See [`super::non_blocking::MarketData::get_historical_quotes`].
         ///
