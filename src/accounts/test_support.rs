@@ -70,11 +70,16 @@ pub struct OrderLegWire {
     duration: OrderDurationWire,
     avg_fill_price: f64,
     exec_quantity: f64,
-    last_fill_price: f64,
-    last_fill_quantity: f64,
-    remaining_quantity: f64,
-    price: f64,
-    option_symbol: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remaining_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    option_symbol: Option<String>,
 }
 
 #[derive(Debug, Serialize, proptest_derive::Arbitrary)]
@@ -92,25 +97,32 @@ pub struct OrderWire {
     create_date: DateTimeUtcWire,
     transaction_date: DateTimeUtcWire,
     class: OrderClassWire,
-    last_fill_price: f64,
-    last_fill_quantity: f64,
-    remaining_quantity: f64,
-    price: f64,
-    option_symbol: String,
-    num_legs: u32,
-    strategy: String,
-    leg: Vec<OrderLegWire>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_fill_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remaining_quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    option_symbol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    num_legs: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    strategy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    leg: Option<Vec<OrderLegWire>>,
 }
 
 #[derive(Debug, Serialize, proptest_derive::Arbitrary)]
 pub struct AccountOrdersWire {
     order: Vec<OrderWire>,
-    #[proptest(strategy = "1..i32::MAX")]
-    page: i32,
-    #[proptest(strategy = "1..i32::MAX")]
-    total_pages: i32,
-    #[proptest(strategy = "0..i32::MAX")]
-    total_orders: i32,
+    #[proptest(strategy = "1..u32::MAX")]
+    page: u32,
+    #[proptest(strategy = "1..u32::MAX")]
+    total_pages: u32,
+    total_orders: u32,
 }
 
 #[derive(Debug, Serialize, proptest_derive::Arbitrary)]
@@ -124,9 +136,11 @@ mod test {
     use proptest::prelude::*;
     use serde_json::{json, Value};
     use std::fs::OpenOptions;
-    use tracing::debug;
 
-    static PATH: &str = "src/accounts/get_account_orders_schema.json";
+    static PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/accounts/get_account_orders_schema.json"
+    );
 
     #[test]
     fn should_fail_to_process_an_empty_object() {
@@ -159,7 +173,6 @@ mod test {
                 .expect("validator in test to work as expected");
             let actual_serialized_value = serde_json::to_value(&wire_object)
                 .expect("serde to serialize the object correctly");
-            debug!("{:#?}", &actual_serialized_value);
             prop_assert!(validator.is_valid(&actual_serialized_value));
         }
     }

@@ -262,9 +262,14 @@ mod test {
             })
             .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
             let server = server.borrow_mut();
+            let page = Page::new(3);
+            let limit = Limit::new(40);
             let mut operation = server.mock(|when, then| {
                 when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/orders"))).unwrap().path())
-                    .header("accept", "application/json");
+                    .header("accept", "application/json")
+                    .query_param("page", page.to_string())
+                    .query_param("limit", limit.to_string())
+                    .query_param("includeTags", "true");
                 then.status(200)
                     .header("content-type", "application/json")
                     .body(serde_json::to_vec(&response)
@@ -277,8 +282,8 @@ mod test {
                 let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
                 let response = sut.get_account_orders(
                     &ascii_string.parse().expect("valid ascii"),
-                    &Page::default(),
-                    &Limit::default(),
+                    &page,
+                    &limit,
                     &IncludeTags::from(true),
                 );
                 operation.assert();
@@ -297,9 +302,14 @@ mod test {
             })
             .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
             let server = server.borrow_mut();
+            let page = Page::default();
+            let limit = Limit::default();
             let mut operation = server.mock(|when, then| {
                 when.path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/orders"))).unwrap().path())
-                    .header("accept", "application/json");
+                    .header("accept", "application/json")
+                    .query_param("page", page.to_string())
+                    .query_param("limit", limit.to_string())
+                    .query_param("includeTags", "false");
                 then.status(200)
                     .header("content-type", "application/json")
                     .body(serde_json::to_vec(&response)
@@ -312,8 +322,8 @@ mod test {
                 let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
                 let response = sut.get_account_orders(
                     &ascii_string.parse().expect("valid ascii"),
-                    &Page::default(),
-                    &Limit::default(),
+                    &page,
+                    &limit,
                     &IncludeTags::from(false),
                 );
                 operation.assert();

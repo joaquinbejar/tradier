@@ -246,9 +246,9 @@ pub struct Order {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct AccountOrders {
     order: OneOrMany<Order>,
-    page: i32,
-    total_pages: i32,
-    total_orders: i32,
+    page: u32,
+    total_pages: u32,
+    total_orders: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
