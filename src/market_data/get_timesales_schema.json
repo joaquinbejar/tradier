@@ -1,0 +1,35 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-market-timesales.json",
+    "title": "GetTimeAndSales response",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "series": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["data"],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["time", "timestamp", "price", "open", "high", "low", "close", "volume"],
+                        "properties": {
+                            "time": { "type": "string" },
+                            "timestamp": { "type": "integer" },
+                            "price": { "type": "number" },
+                            "open": { "type": "number" },
+                            "high": { "type": "number" },
+                            "low": { "type": "number" },
+                            "close": { "type": "number" },
+                            "volume": { "type": "integer", "minimum": 0 },
+                            "vwap": { "type": "number" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

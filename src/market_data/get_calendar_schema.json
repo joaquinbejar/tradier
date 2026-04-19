@@ -1,0 +1,54 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-market-calendar.json",
+    "title": "GetCalendar response",
+    "type": "object",
+    "required": ["calendar"],
+    "additionalProperties": false,
+    "properties": {
+        "calendar": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["month", "year", "days"],
+            "properties": {
+                "month": { "type": "integer", "minimum": 1, "maximum": 12 },
+                "year": { "type": "integer", "minimum": 0 },
+                "days": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["day"],
+                    "properties": {
+                        "day": {
+                            "type": "array",
+                            "items": { "$ref": "#/$defs/CalendarDay" }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "$defs": {
+        "CalendarDay": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["date", "status", "description"],
+            "properties": {
+                "date": { "type": "string" },
+                "status": { "type": "string" },
+                "description": { "type": "string" },
+                "premarket": { "$ref": "#/$defs/Window" },
+                "open": { "$ref": "#/$defs/Window" },
+                "postmarket": { "$ref": "#/$defs/Window" }
+            }
+        },
+        "Window": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start", "end"],
+            "properties": {
+                "start": { "type": "string" },
+                "end": { "type": "string" }
+            }
+        }
+    }
+}

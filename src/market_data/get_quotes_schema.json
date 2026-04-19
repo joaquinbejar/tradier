@@ -1,0 +1,92 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-market-quotes.json",
+    "title": "GetQuotes response",
+    "type": "object",
+    "required": ["quotes"],
+    "additionalProperties": false,
+    "properties": {
+        "quotes": { "$ref": "#/$defs/QuotesPayload" }
+    },
+    "$defs": {
+        "QuotesPayload": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "quote": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Quote" }
+                },
+                "unmatched_symbols": { "$ref": "#/$defs/UnmatchedSymbols" }
+            }
+        },
+        "UnmatchedSymbols": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["symbol"],
+            "properties": {
+                "symbol": { "type": "array", "items": { "type": "string" } }
+            }
+        },
+        "Quote": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["symbol", "description", "exch", "type"],
+            "properties": {
+                "symbol": { "type": "string" },
+                "description": { "type": "string" },
+                "exch": { "type": "string" },
+                "type": { "type": "string" },
+                "last": { "type": "number" },
+                "change": { "type": "number" },
+                "volume": { "type": "integer", "minimum": 0 },
+                "open": { "type": "number" },
+                "high": { "type": "number" },
+                "low": { "type": "number" },
+                "close": { "type": "number" },
+                "bid": { "type": "number" },
+                "ask": { "type": "number" },
+                "change_percentage": { "type": "number" },
+                "average_volume": { "type": "integer", "minimum": 0 },
+                "last_volume": { "type": "integer", "minimum": 0 },
+                "trade_date": { "type": "integer" },
+                "prevclose": { "type": "number" },
+                "week_52_high": { "type": "number" },
+                "week_52_low": { "type": "number" },
+                "bidsize": { "type": "integer", "minimum": 0 },
+                "bidexch": { "type": "string" },
+                "bid_date": { "type": "integer" },
+                "asksize": { "type": "integer", "minimum": 0 },
+                "askexch": { "type": "string" },
+                "ask_date": { "type": "integer" },
+                "root_symbols": { "type": "string" },
+                "underlying": { "type": "string" },
+                "strike": { "type": "number" },
+                "open_interest": { "type": "integer", "minimum": 0 },
+                "contract_size": { "type": "integer", "minimum": 0 },
+                "expiration_date": { "type": "string" },
+                "expiration_type": { "type": "string" },
+                "option_type": { "type": "string" },
+                "root_symbol": { "type": "string" },
+                "greeks": { "$ref": "#/$defs/Greeks" }
+            }
+        },
+        "Greeks": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "delta": { "type": "number" },
+                "gamma": { "type": "number" },
+                "theta": { "type": "number" },
+                "vega": { "type": "number" },
+                "rho": { "type": "number" },
+                "phi": { "type": "number" },
+                "bid_iv": { "type": "number" },
+                "mid_iv": { "type": "number" },
+                "ask_iv": { "type": "number" },
+                "smv_vol": { "type": "number" },
+                "updated_at": { "type": "string" }
+            }
+        }
+    }
+}

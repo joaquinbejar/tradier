@@ -23,6 +23,7 @@ mod watchlists;
 pub mod types {
     pub use crate::accounts::types::*;
     pub use crate::common::SortOrder;
+    pub use crate::market_data::types::*;
     pub use crate::user::types::*;
     pub use crate::utils::OneOrMany;
 }
@@ -30,6 +31,7 @@ pub mod blocking {
     pub use super::client::blocking::BlockingTradierRestClient as Client;
     pub mod operation {
         pub use crate::accounts::api::blocking::Accounts;
+        pub use crate::market_data::api::blocking::MarketData;
         pub use crate::user::api::blocking::User;
     }
 }
@@ -38,6 +40,7 @@ pub mod non_blocking {
     pub use super::client::non_blocking::TradierRestClient as Client;
     pub mod operation {
         pub use crate::accounts::api::non_blocking::Accounts;
+        pub use crate::market_data::api::non_blocking::MarketData;
         pub use crate::user::api::non_blocking::User;
     }
 }

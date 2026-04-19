@@ -1,0 +1,32 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-market-history.json",
+    "title": "GetHistoricalQuotes response",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "history": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["day"],
+            "properties": {
+                "day": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["date", "open", "high", "low", "close", "volume"],
+                        "properties": {
+                            "date": { "type": "string" },
+                            "open": { "type": "number" },
+                            "high": { "type": "number" },
+                            "low": { "type": "number" },
+                            "close": { "type": "number" },
+                            "volume": { "type": "integer", "minimum": 0 }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

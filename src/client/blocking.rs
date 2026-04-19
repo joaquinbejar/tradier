@@ -19,6 +19,7 @@
 //! # When **not** to use
 //! - Any code already running under Tokio (e.g., `#[tokio::main]`, `#[tokio::test]`).
 //!   In those cases, import and call the async client directly.
+use chrono::{DateTime, NaiveDate, Utc};
 use tokio::runtime::{Handle, Runtime};
 
 use crate::{
@@ -30,6 +31,19 @@ use crate::{
     accounts::{api::blocking::Accounts, api::non_blocking::Accounts as NonBlockingAccounts},
     client::non_blocking::TradierRestClient as AsyncClient,
     common::SortOrder,
+    market_data::{
+        api::blocking::MarketData,
+        api::non_blocking::MarketData as NonBlockingMarketData,
+        types::{
+            CalendarMonth, CalendarYear, DelayedFlag, Exchanges, GetCalendarResponse,
+            GetClockResponse, GetEtbSecuritiesResponse, GetHistoricalQuotesResponse,
+            GetOptionChainsResponse, GetOptionExpirationsResponse, GetOptionStrikesResponse,
+            GetQuotesResponse, GetTimeAndSalesResponse, Greeks, HistoryInterval, IncludeAllRoots,
+            IncludeStrikes, IndexesFlag, LookupOptionSymbolsResponse, LookupSymbolResponse,
+            SearchCompaniesResponse, SecurityTypes, SessionFilter, Symbol, Symbols,
+            TimeSalesInterval,
+        },
+    },
     user::{api::blocking::User, api::non_blocking::User as NonBlockingUser, UserProfileResponse},
     utils::Sealed,
     Config, Result,
@@ -173,6 +187,128 @@ impl Accounts for BlockingTradierRestClient {
             limit,
             include_tags,
         ))
+    }
+}
+
+impl MarketData for BlockingTradierRestClient {
+    fn get_quotes(&self, symbols: &Symbols, greeks: Option<Greeks>) -> Result<GetQuotesResponse> {
+        self.runtime
+            .block_on(self.rest_client.get_quotes(symbols, greeks))
+    }
+
+    fn post_quotes(&self, symbols: &Symbols, greeks: Option<Greeks>) -> Result<GetQuotesResponse> {
+        self.runtime
+            .block_on(self.rest_client.post_quotes(symbols, greeks))
+    }
+
+    fn get_option_chains(
+        &self,
+        symbol: &Symbol,
+        expiration: &NaiveDate,
+        greeks: Option<Greeks>,
+    ) -> Result<GetOptionChainsResponse> {
+        self.runtime.block_on(
+            self.rest_client
+                .get_option_chains(symbol, expiration, greeks),
+        )
+    }
+
+    fn get_option_strikes(
+        &self,
+        symbol: &Symbol,
+        expiration: &NaiveDate,
+    ) -> Result<GetOptionStrikesResponse> {
+        self.runtime
+            .block_on(self.rest_client.get_option_strikes(symbol, expiration))
+    }
+
+    fn get_option_expirations(
+        &self,
+        symbol: &Symbol,
+        include_all_roots: Option<IncludeAllRoots>,
+        strikes: Option<IncludeStrikes>,
+    ) -> Result<GetOptionExpirationsResponse> {
+        self.runtime
+            .block_on(
+                self.rest_client
+                    .get_option_expirations(symbol, include_all_roots, strikes),
+            )
+    }
+
+    fn lookup_option_symbols(&self, underlying: &Symbol) -> Result<LookupOptionSymbolsResponse> {
+        self.runtime
+            .block_on(self.rest_client.lookup_option_symbols(underlying))
+    }
+
+    fn get_historical_quotes(
+        &self,
+        symbol: &Symbol,
+        interval: Option<HistoryInterval>,
+        start: Option<&NaiveDate>,
+        end: Option<&NaiveDate>,
+        session_filter: Option<SessionFilter>,
+    ) -> Result<GetHistoricalQuotesResponse> {
+        self.runtime
+            .block_on(self.rest_client.get_historical_quotes(
+                symbol,
+                interval,
+                start,
+                end,
+                session_filter,
+            ))
+    }
+
+    fn get_time_and_sales(
+        &self,
+        symbol: &Symbol,
+        interval: Option<TimeSalesInterval>,
+        start: Option<&DateTime<Utc>>,
+        end: Option<&DateTime<Utc>>,
+        session_filter: Option<SessionFilter>,
+    ) -> Result<GetTimeAndSalesResponse> {
+        self.runtime.block_on(self.rest_client.get_time_and_sales(
+            symbol,
+            interval,
+            start,
+            end,
+            session_filter,
+        ))
+    }
+
+    fn get_etb_securities(&self) -> Result<GetEtbSecuritiesResponse> {
+        self.runtime.block_on(self.rest_client.get_etb_securities())
+    }
+
+    fn get_clock(&self, delayed: Option<DelayedFlag>) -> Result<GetClockResponse> {
+        self.runtime.block_on(self.rest_client.get_clock(delayed))
+    }
+
+    fn get_calendar(
+        &self,
+        month: Option<CalendarMonth>,
+        year: Option<CalendarYear>,
+    ) -> Result<GetCalendarResponse> {
+        self.runtime
+            .block_on(self.rest_client.get_calendar(month, year))
+    }
+
+    fn search_companies(
+        &self,
+        q: &str,
+        indexes: Option<IndexesFlag>,
+    ) -> Result<SearchCompaniesResponse> {
+        self.runtime
+            .block_on(self.rest_client.search_companies(q, indexes))
+    }
+
+    fn lookup_symbol(
+        &self,
+        q: &str,
+        exchanges: Option<&Exchanges>,
+        types: Option<&SecurityTypes>,
+    ) -> Result<LookupSymbolResponse> {
+        self.runtime
+            .block_on(self.rest_client.lookup_symbol(q, exchanges, types))
     }
 }
 
@@ -538,5 +674,671 @@ mod test {
         let config = Config::new();
         let sut = BlockingTradierRestClient::new(config);
         assert!(sut.is_err());
+    }
+}
+
+#[cfg(test)]
+mod market_data_tests {
+    use super::BlockingTradierRestClient;
+    use crate::{
+        market_data::{
+            api::blocking::MarketData,
+            test_support::{
+                GetCalendarResponseWire, GetClockResponseWire, GetEtbSecuritiesResponseWire,
+                GetHistoricalQuotesResponseWire, GetOptionChainsResponseWire,
+                GetOptionExpirationsResponseWire, GetOptionStrikesResponseWire,
+                GetQuotesResponseWire, GetTimeAndSalesResponseWire,
+                LookupOptionSymbolsResponseWire, LookupSymbolResponseWire,
+                SearchCompaniesResponseWire,
+            },
+            types::{
+                CalendarMonth, CalendarYear, DelayedFlag, Exchanges, Greeks, HistoryInterval,
+                IncludeAllRoots, IncludeStrikes, IndexesFlag, SecurityTypes, SessionFilter, Symbol,
+                Symbols, TimeSalesInterval,
+            },
+        },
+        utils::tests::with_env_vars,
+        Config,
+    };
+    use chrono::{NaiveDate, TimeZone, Utc};
+    use httpmock::MockServer;
+    use proptest::prelude::*;
+    use std::cell::RefCell;
+
+    fn make_symbol(s: &str) -> Symbol {
+        s.parse().expect("valid symbol")
+    }
+
+    fn make_symbols(syms: &[&str]) -> Symbols {
+        Symbols::new(syms.iter().map(|s| make_symbol(s)))
+    }
+
+    fn make_client(server: &MockServer) -> BlockingTradierRestClient {
+        let mut config = Config::new();
+        // Swap the base URL to point at the mock server.
+        config.rest_api.base_url = server.base_url();
+        BlockingTradierRestClient::new(config).expect("client to initialize")
+    }
+
+    fn run_with_env<F: FnOnce()>(server: &MockServer, f: F) {
+        with_env_vars(
+            vec![
+                ("TRADIER_REST_BASE_URL", &server.base_url()),
+                ("TRADIER_ACCESS_TOKEN", "testToken"),
+            ],
+            f,
+        );
+    }
+
+    // 1. GET /v1/markets/quotes ------------------------------------------------
+
+    #[test]
+    fn test_get_quotes_happy_path_returns_decoded_struct() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetQuotesResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/v1/markets/quotes")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL,MSFT")
+                        .query_param("greeks", "true");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_quotes(
+                        &make_symbols(&["AAPL", "MSFT"]),
+                        Some(Greeks::new(true)),
+                    );
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_quotes_without_greeks_omits_query_param() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.method(httpmock::Method::GET)
+                .path("/v1/markets/quotes")
+                .query_param("symbols", "AAPL")
+                .is_true(|req| req.query_params().iter().all(|(k, _)| k != "greeks"));
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"quotes":{}}"#);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_quotes(&make_symbols(&["AAPL"]), None);
+            assert!(resp.is_ok());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_quotes_server_error_surfaces_network_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/quotes");
+            then.status(500)
+                .header("content-type", "application/json")
+                .body("not json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_quotes(&make_symbols(&["AAPL"]), None);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_quotes_malformed_body_surfaces_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/quotes");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_quotes(&make_symbols(&["AAPL"]), None);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_quotes_four_hundred_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/quotes");
+            then.status(400)
+                .header("content-type", "application/json")
+                .body(r#"{"fault":{"faultstring":"bad"}}"#);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_quotes(&make_symbols(&["AAPL"]), None);
+            // The client deserializes JSON bodies even on non-2xx because reqwest
+            // does not automatically raise on status. The body here is valid JSON
+            // but does not match GetQuotesResponse, so deserialization must fail.
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // 2. POST /v1/markets/quotes ----------------------------------------------
+
+    #[test]
+    fn test_post_quotes_happy_path_posts_form_body() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.method(httpmock::Method::POST)
+                .path("/v1/markets/quotes")
+                .header("accept", "application/json")
+                .body_includes("symbols=AAPL%2CMSFT")
+                .body_includes("greeks=true");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"quotes":{}}"#);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp =
+                client.post_quotes(&make_symbols(&["AAPL", "MSFT"]), Some(Greeks::new(true)));
+            assert!(resp.is_ok());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_post_quotes_without_greeks_form_body_has_no_greeks_field() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.method(httpmock::Method::POST)
+                .path("/v1/markets/quotes")
+                .body_includes("symbols=AAPL")
+                .is_true(|req| !req.body_string().contains("greeks"));
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"quotes":{}}"#);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.post_quotes(&make_symbols(&["AAPL"]), None);
+            assert!(resp.is_ok());
+            op.assert();
+        });
+    }
+
+    // 3. GET /v1/markets/options/chains ---------------------------------------
+
+    #[test]
+    fn test_get_option_chains_happy_path_verifies_query_params() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetOptionChainsResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/v1/markets/options/chains")
+                        .query_param("symbol", "AAPL")
+                        .query_param("expiration", "2024-06-21")
+                        .query_param("greeks", "false");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let expiration = NaiveDate::from_ymd_opt(2024, 6, 21).unwrap();
+                    let resp = client.get_option_chains(
+                        &make_symbol("AAPL"),
+                        &expiration,
+                        Some(Greeks::new(false)),
+                    );
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_option_chains_server_error_surfaces_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/options/chains");
+            then.status(503);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let expiration = NaiveDate::from_ymd_opt(2024, 6, 21).unwrap();
+            let resp = client.get_option_chains(&make_symbol("AAPL"), &expiration, None);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // 4. GET /v1/markets/options/strikes --------------------------------------
+
+    #[test]
+    fn test_get_option_strikes_happy_path_returns_decoded_struct() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetOptionStrikesResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/options/strikes")
+                        .query_param("symbol", "AAPL")
+                        .query_param("expiration", "2024-06-21");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let expiration = NaiveDate::from_ymd_opt(2024, 6, 21).unwrap();
+                    let resp = client
+                        .get_option_strikes(&make_symbol("AAPL"), &expiration);
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    // 5. GET /v1/markets/options/expirations ----------------------------------
+
+    #[test]
+    fn test_get_option_expirations_happy_path_verifies_query_params() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetOptionExpirationsResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/options/expirations")
+                        .query_param("symbol", "AAPL")
+                        .query_param("includeAllRoots", "true")
+                        .query_param("strikes", "true");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_option_expirations(
+                        &make_symbol("AAPL"),
+                        Some(IncludeAllRoots::new(true)),
+                        Some(IncludeStrikes::new(true)),
+                    );
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    // 6. GET /v1/markets/options/lookup ---------------------------------------
+
+    #[test]
+    fn test_lookup_option_symbols_happy_path_returns_decoded_struct() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<LookupOptionSymbolsResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/options/lookup")
+                        .query_param("underlying", "AAPL");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.lookup_option_symbols(&make_symbol("AAPL"));
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    // 7. GET /v1/markets/history ----------------------------------------------
+
+    #[test]
+    fn test_get_historical_quotes_happy_path_verifies_all_query_params() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetHistoricalQuotesResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/history")
+                        .query_param("symbol", "AAPL")
+                        .query_param("interval", "daily")
+                        .query_param("start", "2024-01-01")
+                        .query_param("end", "2024-01-31")
+                        .query_param("session_filter", "open");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let start = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+                    let end = NaiveDate::from_ymd_opt(2024, 1, 31).unwrap();
+                    let resp = client.get_historical_quotes(
+                        &make_symbol("AAPL"),
+                        Some(HistoryInterval::Daily),
+                        Some(&start),
+                        Some(&end),
+                        Some(SessionFilter::Open),
+                    );
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_historical_quotes_with_no_options_sends_only_symbol() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/history")
+                .query_param("symbol", "AAPL")
+                .is_true(|req| {
+                    req.query_params()
+                        .iter()
+                        .filter(|(k, _)| k != "symbol")
+                        .count()
+                        == 0
+                });
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"history": null}"#);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_historical_quotes(&make_symbol("AAPL"), None, None, None, None);
+            assert!(resp.is_ok());
+            op.assert();
+        });
+    }
+
+    // 8. GET /v1/markets/timesales --------------------------------------------
+
+    #[test]
+    fn test_get_time_and_sales_happy_path_verifies_all_query_params() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetTimeAndSalesResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/timesales")
+                        .query_param("symbol", "AAPL")
+                        .query_param("interval", "5min")
+                        .query_param("start", "2024-01-15 09:30")
+                        .query_param("end", "2024-01-15 16:00")
+                        .query_param("session_filter", "all");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let start = Utc.with_ymd_and_hms(2024, 1, 15, 9, 30, 0).unwrap();
+                    let end = Utc.with_ymd_and_hms(2024, 1, 15, 16, 0, 0).unwrap();
+                    let resp = client.get_time_and_sales(
+                        &make_symbol("AAPL"),
+                        Some(TimeSalesInterval::FiveMinutes),
+                        Some(&start),
+                        Some(&end),
+                        Some(SessionFilter::All),
+                    );
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    // 9. GET /v1/markets/etb --------------------------------------------------
+
+    #[test]
+    fn test_get_etb_securities_happy_path_returns_decoded_struct() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetEtbSecuritiesResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/etb");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_etb_securities();
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_etb_securities_not_authorized_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/etb");
+            then.status(401)
+                .header("content-type", "application/json")
+                .body("\"not a json object\"");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_etb_securities();
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // 10. GET /v1/markets/clock -----------------------------------------------
+
+    #[test]
+    fn test_get_clock_happy_path_verifies_delayed_query_param() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetClockResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/clock")
+                        .query_param("delayed", "true");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_clock(Some(DelayedFlag::new(true)));
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_clock_without_delayed_omits_query_param() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/clock")
+                .is_true(|req| req.query_params().iter().all(|(k, _)| k != "delayed"));
+            then.status(200).header("content-type", "application/json").body(
+                r#"{"clock":{"date":"2024-01-01","description":"Market is open","state":"open","timestamp":1,"next_change":"","next_state":"closed"}}"#,
+            );
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_clock(None);
+            assert!(resp.is_ok());
+            op.assert();
+        });
+    }
+
+    // 11. GET /v1/markets/calendar --------------------------------------------
+
+    #[test]
+    fn test_get_calendar_happy_path_verifies_month_year_params() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<GetCalendarResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/calendar")
+                        .query_param("month", "6")
+                        .query_param("year", "2024");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_calendar(
+                        Some(CalendarMonth::new(6).unwrap()),
+                        Some(CalendarYear::new(2024)),
+                    );
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    // 12. GET /v1/markets/search ----------------------------------------------
+
+    #[test]
+    fn test_search_companies_happy_path_returns_decoded_struct() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<SearchCompaniesResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/search")
+                        .query_param("q", "apple")
+                        .query_param("indexes", "false");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.search_companies("apple", Some(IndexesFlag::new(false)));
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    // 13. GET /v1/markets/lookup ----------------------------------------------
+
+    #[test]
+    fn test_lookup_symbol_happy_path_verifies_query_params() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(response in any::<LookupSymbolResponseWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.path("/v1/markets/lookup")
+                        .query_param("q", "goog")
+                        .query_param("exchanges", "N,Q")
+                        .query_param("types", "stock,etf");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&response).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let exchanges = Exchanges::new(vec!["N".into(), "Q".into()]);
+                    let types = SecurityTypes::new(vec!["stock".into(), "etf".into()]);
+                    let resp = client.lookup_symbol(
+                        "goog",
+                        Some(&exchanges),
+                        Some(&types),
+                    );
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_lookup_symbol_with_empty_filters_omits_query_params() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/v1/markets/lookup")
+                .query_param("q", "aap")
+                .is_true(|req| {
+                    req.query_params()
+                        .iter()
+                        .all(|(k, _)| k != "exchanges" && k != "types")
+                });
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"securities": null}"#);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.lookup_symbol("aap", None, None);
+            assert!(resp.is_ok());
+            op.assert();
+        });
+    }
+
+    // Network error case — the server has no route for this path.
+    #[test]
+    fn test_network_error_when_server_refuses_connection() {
+        // Point at a port no one is listening on.
+        let mut cfg = Config::new();
+        cfg.credentials.access_token = Some("t".into());
+        cfg.rest_api.base_url = "http://127.0.0.1:1".into();
+        let client = BlockingTradierRestClient::new(cfg).expect("client");
+        let resp = client.get_etb_securities();
+        assert!(resp.is_err());
     }
 }
