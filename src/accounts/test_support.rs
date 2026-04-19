@@ -63,7 +63,7 @@ pub struct ClosedPositionWire {
     proceeds: f64,
     quantity: f64,
     symbol: String,
-    term: i32,
+    term: u32,
 }
 
 #[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]

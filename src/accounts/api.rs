@@ -1,7 +1,8 @@
-use crate::accounts::types::AccountNumber;
-use crate::accounts::types::GetAccountBalancesResponse;
-use crate::accounts::types::{GainLossSortBy, GetAccountGainLossResponse, SortOrder};
-use crate::accounts::types::{Limit, Page};
+use crate::accounts::types::{
+    AccountNumber, GainLossSortBy, GetAccountBalancesResponse, GetAccountGainLossResponse, Limit,
+    Page,
+};
+use crate::common::SortOrder;
 use crate::types::GetAccountPositionsResponse;
 use crate::{error::Result, utils::Sealed};
 

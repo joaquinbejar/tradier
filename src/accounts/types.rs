@@ -117,25 +117,6 @@ impl std::fmt::Display for EventType {
     }
 }
 
-/// Direction for sorting account gain/loss results.
-///
-/// Currently specific to `get_account_gain_loss`. May be moved to `crate::common`
-/// if other endpoints require sort order control.
-#[derive(Clone, Debug, PartialEq)]
-pub enum SortOrder {
-    Asc,
-    Desc,
-}
-
-impl std::fmt::Display for SortOrder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            SortOrder::Asc => "asc",
-            SortOrder::Desc => "desc",
-        })
-    }
-}
-
 /// Field to sort by when querying account gain/loss.
 ///
 /// Currently specific to `get_account_gain_loss`. May be moved to `crate::common`
@@ -182,7 +163,7 @@ pub struct ClosedPosition {
     proceeds: f64,
     quantity: f64,
     symbol: String,
-    term: i32,
+    term: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]

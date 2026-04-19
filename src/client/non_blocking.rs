@@ -5,9 +5,10 @@ use crate::{
         api::non_blocking::Accounts,
         types::{
             AccountNumber, GainLossSortBy, GetAccountBalancesResponse, GetAccountGainLossResponse,
-            Limit, Page, SortOrder,
+            Limit, Page,
         },
     },
+    common::SortOrder,
     config::Config,
     types::GetAccountPositionsResponse,
     user::{api::non_blocking::User, UserProfileResponse},

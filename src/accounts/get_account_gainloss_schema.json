@@ -27,13 +27,13 @@
               "proceeds": { "type": "number" },
               "quantity": { "type": "number" },
               "symbol": { "type": "string" },
-              "term": { "type": "integer" }
+              "term": { "type": "integer", "minimum": 0 }
             }
           }
         },
-        "page": { "type": "integer" },
-        "total_pages": { "type": "integer" },
-        "total_positions": { "type": "integer" }
+        "page": { "type": "integer", "minimum": 0 },
+        "total_pages": { "type": "integer", "minimum": 0 },
+        "total_positions": { "type": "integer", "minimum": 0 }
       }
     }
   }
