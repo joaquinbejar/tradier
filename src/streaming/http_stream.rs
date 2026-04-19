@@ -1,15 +1,16 @@
 //! HTTP chunked-transfer streaming of Tradier events.
 //!
 //! Tradier exposes HTTP-streaming endpoints at
-//! `https://stream.tradier.com/v1/markets/events`. The body is a
-//! chunked stream of newline-delimited JSON events. Each line is one
-//! event.
+//! `https://stream.tradier.com/v1/markets/events` (market events) and
+//! `https://stream.tradier.com/v1/accounts/events` (account events).
+//! The body is a chunked stream of newline-delimited JSON events. Each
+//! line is one event.
 //!
-//! This module provides [`market_events`] — a `Stream`-returning
-//! helper that reuses the pooled `reqwest::Client` from
-//! [`crate::client::non_blocking::TradierRestClient`]. Callers that
-//! cannot use WebSockets (for instance, from behind strict corporate
-//! egress filters) can fall back to this.
+//! This module provides [`market_events`] and [`account_events`] —
+//! `Stream`-returning helpers that reuse the pooled `reqwest::Client`
+//! from [`crate::client::non_blocking::TradierRestClient`]. Callers
+//! that cannot use WebSockets (for instance, from behind strict
+//! corporate egress filters) can fall back to these.
 //!
 //! ## Error handling
 //!
@@ -30,6 +31,7 @@ use serde::Serialize;
 use tracing::{debug, info, warn};
 
 use crate::client::non_blocking::TradierRestClient;
+use crate::wssession::account_events::AccountEvent;
 use crate::wssession::events::MarketEvent;
 use crate::{Error, Result};
 
@@ -117,6 +119,69 @@ pub async fn market_events(
     Ok(ndjson_event_stream(
         response.bytes_stream(),
         MarketEvent::from_json,
+    ))
+}
+
+/// Streams account events over the Tradier HTTP chunked-transfer
+/// endpoint. Reuses the `reqwest::Client` on `client`.
+///
+/// # Parameters
+///
+/// - `client`: a [`TradierRestClient`] — the existing `reqwest::Client`
+///   on it is reused.
+/// - `session_id`: the session id minted by the REST session-bootstrap
+///   call. Passed as the `sessionid` query parameter.
+/// - `events`: optional list of event filters matching
+///   [`crate::wssession::AccountSessionEvent`] (`order`, `position`,
+///   `trade`, `fill`, `drop`). Passed as the `events` query
+///   parameter.
+/// - `exclude_accounts`: optional list of account numbers to mask from
+///   the stream. Passed as the `excludeAccounts` query parameter.
+///
+/// # Errors
+///
+/// Same shape as [`market_events`].
+pub async fn account_events(
+    client: &TradierRestClient,
+    session_id: &str,
+    events: Option<&[crate::wssession::AccountSessionEvent]>,
+    exclude_accounts: Option<&[String]>,
+) -> Result<impl Stream<Item = Result<AccountEvent>>> {
+    let config = client.http_client_config();
+    let base = &config.streaming.http_base_url;
+    let url = format!("{base}/v1/accounts/events");
+    let bearer = client.get_bearer_token()?;
+
+    let mut query: Vec<(&str, String)> = Vec::with_capacity(4);
+    query.push(("sessionid", session_id.to_owned()));
+    if let Some(events) = events {
+        for e in events {
+            query.push(("events", e.as_ref().to_owned()));
+        }
+    }
+    if let Some(excluded) = exclude_accounts {
+        for acct in excluded {
+            query.push(("excludeAccounts", acct.clone()));
+        }
+    }
+
+    info!(url = %url, "opening HTTP account event stream");
+    let response = client
+        .http_client()
+        .get(&url)
+        .bearer_auth(bearer)
+        .header("accept", "application/json")
+        .query(&query)
+        .send()
+        .await
+        .map_err(Error::NetworkError)?;
+
+    let response = error_for_non_success(response).await?;
+    debug!("HTTP account stream accepted, decoding body");
+
+    Ok(ndjson_event_stream(
+        response.bytes_stream(),
+        AccountEvent::from_json,
     ))
 }
 
@@ -371,6 +436,80 @@ mod tests {
         let client = TradierRestClient::new(config);
         let symbols = ["SPY".to_string()];
         let result = market_events(&client, "sid", &symbols, None, None, None, None).await;
+        assert!(matches!(result, Err(Error::NetworkError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_http_account_stream_decodes_newline_delimited_events() {
+        let server = MockServer::start_async().await;
+        let body = format!(
+            "{order}\n{fill}\n",
+            order = r#"{"event":"order","id":1,"status":"open"}"#,
+            fill = r#"{"event":"fill","order_id":1,"quantity":50.0,"price":281.12}"#,
+        );
+        let _mock = server
+            .mock_async(|when, then| {
+                when.method(GET).path("/v1/accounts/events");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .header("transfer-encoding", "chunked")
+                    .body(body);
+            })
+            .await;
+
+        let config = test_config(&server.base_url(), &server.base_url());
+        let client = TradierRestClient::new(config);
+        let stream = account_events(&client, "sid", None, None)
+            .await
+            .expect("account_events");
+        let collected: Vec<Result<AccountEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 2);
+        assert!(matches!(collected[0], Ok(AccountEvent::Order(_))));
+        assert!(matches!(collected[1], Ok(AccountEvent::Fill(_))));
+    }
+
+    #[tokio::test]
+    async fn test_http_account_stream_malformed_line_yields_decode_error_and_continues() {
+        let server = MockServer::start_async().await;
+        let body = format!(
+            "{order}\nnot-json\n{fill}\n",
+            order = r#"{"event":"order","id":1,"status":"open"}"#,
+            fill = r#"{"event":"fill","order_id":1,"quantity":50.0,"price":281.12}"#,
+        );
+        let _mock = server
+            .mock_async(|when, then| {
+                when.method(GET).path("/v1/accounts/events");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(body);
+            })
+            .await;
+
+        let config = test_config(&server.base_url(), &server.base_url());
+        let client = TradierRestClient::new(config);
+        let stream = account_events(&client, "sid", None, None)
+            .await
+            .expect("account_events");
+        let collected: Vec<Result<AccountEvent>> = stream.collect().await;
+        assert_eq!(collected.len(), 3, "got {collected:?}");
+        assert!(matches!(collected[0], Ok(AccountEvent::Order(_))));
+        assert!(matches!(collected[1], Err(Error::StreamDecodeError(_, _))));
+        assert!(matches!(collected[2], Ok(AccountEvent::Fill(_))));
+    }
+
+    #[tokio::test]
+    async fn test_http_account_stream_non_success_surfaces_network_error() {
+        let server = MockServer::start_async().await;
+        let _mock = server
+            .mock_async(|when, then| {
+                when.method(GET).path("/v1/accounts/events");
+                then.status(500).body("boom");
+            })
+            .await;
+
+        let config = test_config(&server.base_url(), &server.base_url());
+        let client = TradierRestClient::new(config);
+        let result = account_events(&client, "sid", None, None).await;
         assert!(matches!(result, Err(Error::NetworkError(_))));
     }
 }
