@@ -662,7 +662,10 @@ mod test {
         assert_eq!(profile.total_employee_number, Some(150000));
         let hq = profile.headquarter.as_ref().expect("hq");
         assert_eq!(hq.city.as_deref(), Some("Cupertino"));
-        let classification = tables.asset_classification.as_ref().expect("classification");
+        let classification = tables
+            .asset_classification
+            .as_ref()
+            .expect("classification");
         assert_eq!(classification.financial_health_grade.as_deref(), Some("A"));
     }
 

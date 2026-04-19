@@ -36,6 +36,10 @@ The library leverages Rust's performance and concurrency advantages, making it s
 2. **Real-time Market Data**: Access live quotes, option chains, historical OHLCV bars,
    intraday time-and-sales, market clock / calendar, and ETB / lookup / search endpoints
    via typed REST bindings (`MarketData` trait).
+3. **Fundamentals (beta)**: Company profiles, corporate calendars (earnings / IPOs),
+   dividend history, corporate actions (splits / mergers), financial ratios (P/E,
+   EPS, margins), income / balance / cash-flow statements, and price statistics
+   via the `Fundamentals` trait. See `examples/fundamentals_company/main.rs`.
 3. **Portfolio Management**: Retrieve account information, positions, and performance metrics.
 4. **Historical Data**: Fetch and analyze historical price and volume data.
 5. **Streaming Data**: Utilize WebSocket connections for real-time data feeds.

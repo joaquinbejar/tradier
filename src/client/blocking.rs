@@ -322,8 +322,7 @@ impl MarketData for BlockingTradierRestClient {
 
 impl Fundamentals for BlockingTradierRestClient {
     fn get_company(&self, symbols: &[Symbol]) -> Result<Vec<CompanyResponse>> {
-        self.runtime
-            .block_on(self.rest_client.get_company(symbols))
+        self.runtime.block_on(self.rest_client.get_company(symbols))
     }
 
     fn get_corporate_calendars(
@@ -339,17 +338,13 @@ impl Fundamentals for BlockingTradierRestClient {
             .block_on(self.rest_client.get_dividends(symbols))
     }
 
-    fn get_corporate_actions(
-        &self,
-        symbols: &[Symbol],
-    ) -> Result<Vec<CorporateActionResponse>> {
+    fn get_corporate_actions(&self, symbols: &[Symbol]) -> Result<Vec<CorporateActionResponse>> {
         self.runtime
             .block_on(self.rest_client.get_corporate_actions(symbols))
     }
 
     fn get_ratios(&self, symbols: &[Symbol]) -> Result<Vec<RatiosResponse>> {
-        self.runtime
-            .block_on(self.rest_client.get_ratios(symbols))
+        self.runtime.block_on(self.rest_client.get_ratios(symbols))
     }
 
     fn get_financials(&self, symbols: &[Symbol]) -> Result<Vec<FinancialsResponse>> {
