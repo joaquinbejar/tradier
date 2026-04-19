@@ -23,11 +23,12 @@ use tokio::runtime::{Handle, Runtime};
 
 use crate::{
     accounts::types::{
-        AccountNumber, EventType, GetAccountBalancesResponse, GetAccountHistoryResponse, Limit,
-        Page,
+        AccountNumber, EventType, GainLossSortBy, GetAccountBalancesResponse,
+        GetAccountGainLossResponse, GetAccountHistoryResponse, Limit, Page,
     },
     accounts::{api::blocking::Accounts, api::non_blocking::Accounts as NonBlockingAccounts},
     client::non_blocking::TradierRestClient as AsyncClient,
+    common::SortOrder,
     user::{api::blocking::User, api::non_blocking::User as NonBlockingUser, UserProfileResponse},
     utils::Sealed,
     Config, Result,
@@ -139,6 +140,24 @@ impl Accounts for BlockingTradierRestClient {
             event_type,
         ))
     }
+
+    fn get_account_gain_loss(
+        &self,
+        account_number: &AccountNumber,
+        page: Option<Page>,
+        limit: Option<Limit>,
+        sort_by: Option<GainLossSortBy>,
+        sort_order: Option<SortOrder>,
+    ) -> Result<GetAccountGainLossResponse> {
+        self.runtime
+            .block_on(self.rest_client.get_account_gain_loss(
+                account_number,
+                page,
+                limit,
+                sort_by,
+                sort_order,
+            ))
+    }
 }
 
 #[cfg(test)]
@@ -148,10 +167,11 @@ mod test {
 
     use crate::{
         accounts::test_support::{
-            GetAccountBalancesResponseWire, GetAccountHistoryResponseWire,
-            GetAccountPositionsResponseWire,
+            GetAccountBalancesResponseWire, GetAccountGainLossResponseWire,
+            GetAccountHistoryResponseWire, GetAccountPositionsResponseWire,
         },
-        accounts::types::{EventType, Limit, Page},
+        accounts::types::{EventType, GainLossSortBy, Limit, Page},
+        common::SortOrder,
         user::test_support::GetUserProfileResponseWire,
         utils::tests::with_env_vars,
         Config,
@@ -159,6 +179,51 @@ mod test {
 
     use httpmock::MockServer;
     use proptest::prelude::*;
+
+    fn run_gain_loss_proptest(
+        server: &RefCell<MockServer>,
+        expected_query_params: &[(&str, &str)],
+        page: Option<Page>,
+        limit: Option<Limit>,
+        sort_by: Option<GainLossSortBy>,
+        sort_order: Option<SortOrder>,
+    ) {
+        proptest!(|(response in any::<GetAccountGainLossResponseWire>(),
+                ascii_string in prop::collection::vec(0x20u8..0x7fu8, 1..256)
+            .prop_flat_map(|vec| {
+                Just(vec.into_iter().map(|c| c as char).collect::<String>())
+            })
+            .prop_filter("Strings must not be empty or blank", |v| !v.trim().is_empty()))| {
+            let server = server.borrow_mut();
+            let mut operation = server.mock(|when, then| {
+                let mut when = when
+                    .path(url::Url::parse(&server.url(format!("/v1/accounts/{ascii_string}/gainloss"))).unwrap().path())
+                    .header("accept", "application/json");
+                for (k, v) in expected_query_params {
+                    when = when.query_param(*k, *v);
+                }
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_vec(&response).expect("serialization to work"));
+            });
+            with_env_vars(vec![("TRADIER_REST_BASE_URL", &server.base_url()),
+            ("TRADIER_ACCESS_TOKEN", "testToken")], || {
+                let config = Config::new();
+                let sut = BlockingTradierRestClient::new(config).expect("client to initialize");
+                let response = sut.get_account_gain_loss(
+                    &ascii_string.parse().expect("valid ascii"),
+                    page.clone(),
+                    limit.clone(),
+                    sort_by.clone(),
+                    sort_order.clone(),
+                );
+                operation.assert();
+                assert_eq!(operation.calls(), 1);
+                assert!(response.is_ok());
+                operation.delete();
+            });
+        });
+    }
 
     #[test]
     fn test_blocking_client() {
@@ -322,6 +387,49 @@ mod test {
                 operation.delete();
             });
         });
+
+        run_gain_loss_proptest(&server, &[], None, None, None, None);
+
+        run_gain_loss_proptest(
+            &server,
+            &[
+                ("page", "2"),
+                ("limit", "50"),
+                ("sortBy", "symbol"),
+                ("sort", "asc"),
+            ],
+            Some(Page::new(2)),
+            Some(Limit::new(50)),
+            Some(GainLossSortBy::Symbol),
+            Some(SortOrder::Asc),
+        );
+
+        run_gain_loss_proptest(
+            &server,
+            &[("sortBy", "closedate"), ("sort", "desc")],
+            None,
+            None,
+            Some(GainLossSortBy::CloseDate),
+            Some(SortOrder::Desc),
+        );
+
+        run_gain_loss_proptest(
+            &server,
+            &[("sortBy", "opendate")],
+            None,
+            None,
+            Some(GainLossSortBy::OpenDate),
+            None,
+        );
+
+        run_gain_loss_proptest(
+            &server,
+            &[("sortBy", "gainloss")],
+            None,
+            None,
+            Some(GainLossSortBy::GainLoss),
+            None,
+        );
     }
 
     #[tokio::test]

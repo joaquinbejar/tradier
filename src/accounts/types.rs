@@ -117,6 +117,56 @@ impl std::fmt::Display for EventType {
         f.write_str(value)
     }
 }
+
+/// Field to sort by when querying account gain/loss.
+///
+/// Currently specific to `get_account_gain_loss`. May be moved to `crate::common`
+/// if other endpoints share these sort options.
+#[derive(Clone, Debug, PartialEq)]
+pub enum GainLossSortBy {
+    CloseDate,
+    OpenDate,
+    Symbol,
+    GainLoss,
+}
+
+impl std::fmt::Display for GainLossSortBy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            GainLossSortBy::CloseDate => "closedate",
+            GainLossSortBy::OpenDate => "opendate",
+            GainLossSortBy::Symbol => "symbol",
+            GainLossSortBy::GainLoss => "gainloss",
+        })
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct GetAccountGainLossResponse {
+    gainloss: AccountGainLoss,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct AccountGainLoss {
+    closed_position: Vec<ClosedPosition>,
+    page: u32,
+    total_pages: u32,
+    total_positions: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct ClosedPosition {
+    close_date: DateTime<Utc>,
+    cost: f64,
+    gain_loss: f64,
+    gain_loss_percent: f64,
+    open_date: DateTime<Utc>,
+    proceeds: f64,
+    quantity: f64,
+    symbol: String,
+    term: u32,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct GetAccountBalancesResponse {
     balances: AccountBalances,
@@ -200,13 +250,13 @@ mod test {
     use proptest::prelude::*;
 
     use super::{
-        AccountNumber, EventType, GetAccountBalancesResponse, GetAccountPositionsResponse, Limit,
-        Page,
+        AccountNumber, EventType, GetAccountBalancesResponse, GetAccountGainLossResponse,
+        GetAccountPositionsResponse, Limit, Page,
     };
     use crate::{
         accounts::test_support::{
-            GetAccountBalancesResponseWire, GetAccountHistoryResponseWire,
-            GetAccountPositionsResponseWire,
+            GetAccountBalancesResponseWire, GetAccountGainLossResponseWire,
+            GetAccountHistoryResponseWire, GetAccountPositionsResponseWire,
         },
         types::GetAccountHistoryResponse,
         Result,
@@ -255,6 +305,17 @@ mod test {
             let response = serde_json::to_string_pretty(&response)
                 .expect("test fixture to serialize");
             let result: std::result::Result<GetAccountPositionsResponse, serde_json::Error> = serde_json::from_str(&response);
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_deserialize_gain_loss_response_from_json(
+            response in any::<GetAccountGainLossResponseWire>()
+        ) {
+            let json = serde_json::to_string_pretty(&response)
+                .expect("test fixture to serialize");
+            let result: std::result::Result<GetAccountGainLossResponse, serde_json::Error> =
+                serde_json::from_str(&json);
             assert!(result.is_ok());
         }
 
