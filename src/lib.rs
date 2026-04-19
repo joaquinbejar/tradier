@@ -14,6 +14,7 @@ pub use error::{Error, Result};
 mod accounts;
 mod client;
 pub mod common;
+mod fundamentals;
 mod market_data;
 mod streaming;
 mod trading;

@@ -1,0 +1,70 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-fundamentals-corporate-actions.json",
+    "title": "GetCorporateActions response",
+    "type": "array",
+    "items": { "$ref": "#/$defs/Envelope" },
+    "$defs": {
+        "Envelope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request", "type", "results"],
+            "properties": {
+                "request": { "type": "string" },
+                "type": { "type": "string" },
+                "results": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Result" }
+                }
+            }
+        },
+        "Result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" },
+                "tables": { "$ref": "#/$defs/Tables" }
+            }
+        },
+        "Tables": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "stock_splits": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/StockSplit" }
+                },
+                "mergers_and_acquisitions": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/MergerAcquisition" }
+                }
+            }
+        },
+        "StockSplit": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "share_class_id": { "type": "string" },
+                "ex_date": { "type": "string" },
+                "adjustment_factor": { "type": "number" },
+                "split_from": { "type": "number" },
+                "split_to": { "type": "number" },
+                "split_type": { "type": "string" }
+            }
+        },
+        "MergerAcquisition": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "acquired_company_id": { "type": "string" },
+                "parent_company_id": { "type": "string" },
+                "cash_amount": { "type": "number" },
+                "currency_id": { "type": "string" },
+                "effective_date": { "type": "string" },
+                "notes": { "type": "string" }
+            }
+        }
+    }
+}

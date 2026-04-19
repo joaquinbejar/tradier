@@ -1,0 +1,63 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-fundamentals-financials.json",
+    "title": "GetFinancials response",
+    "type": "array",
+    "items": { "$ref": "#/$defs/Envelope" },
+    "$defs": {
+        "Envelope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request", "type", "results"],
+            "properties": {
+                "request": { "type": "string" },
+                "type": { "type": "string" },
+                "results": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Result" }
+                }
+            }
+        },
+        "Result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" },
+                "tables": { "$ref": "#/$defs/Tables" }
+            }
+        },
+        "Tables": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "balance_sheet": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Statement" }
+                },
+                "cash_flow_statement": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Statement" }
+                },
+                "income_statement": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Statement" }
+                }
+            }
+        },
+        "Statement": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "period": { "type": "string" },
+                "report_type": { "type": "string" },
+                "fiscal_year_end": { "type": "integer" },
+                "accession_number": { "type": "string" },
+                "filing_date": { "type": "string" },
+                "form_type": { "type": "string" },
+                "period_ending_date": { "type": "string" }
+            }
+        }
+    }
+}

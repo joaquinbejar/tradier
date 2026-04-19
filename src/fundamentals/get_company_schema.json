@@ -1,0 +1,116 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-fundamentals-company.json",
+    "title": "GetCompany response",
+    "type": "array",
+    "items": { "$ref": "#/$defs/Envelope" },
+    "$defs": {
+        "Envelope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request", "type", "results"],
+            "properties": {
+                "request": { "type": "string" },
+                "type": { "type": "string" },
+                "results": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Result" }
+                }
+            }
+        },
+        "Result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" },
+                "tables": { "$ref": "#/$defs/Tables" }
+            }
+        },
+        "Tables": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "company_profile": { "$ref": "#/$defs/CompanyProfile" },
+                "asset_classification": { "$ref": "#/$defs/AssetClassification" },
+                "historical_asset_classification": { "$ref": "#/$defs/AssetClassification" },
+                "long_descriptions": { "type": "string" },
+                "share_class_profile": { "$ref": "#/$defs/ShareClassProfile" },
+                "share_class": { "$ref": "#/$defs/ShareClass" }
+            }
+        },
+        "CompanyProfile": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "company_id": { "type": "string" },
+                "average_employee_number": { "type": "integer" },
+                "contact_email": { "type": "string" },
+                "headquarter": { "$ref": "#/$defs/Headquarter" },
+                "is_head_office_same_with_registered_office_flag": { "type": "boolean" },
+                "total_employee_number": { "type": "integer" },
+                "total_employee_number_as_of_date": { "type": "string" }
+            }
+        },
+        "Headquarter": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "address_line1": { "type": "string" },
+                "city": { "type": "string" },
+                "country": { "type": "string" },
+                "fax": { "type": "string" },
+                "homepage": { "type": "string" },
+                "phone": { "type": "string" },
+                "postal_code": { "type": "string" },
+                "province": { "type": "string" }
+            }
+        },
+        "AssetClassification": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "financial_health_grade": { "type": "string" },
+                "growth_grade": { "type": "string" },
+                "morningstar_economy_sphere_code": { "type": "integer" },
+                "morningstar_industry_code": { "type": "integer" },
+                "morningstar_industry_group_code": { "type": "integer" },
+                "morningstar_sector_code": { "type": "integer" },
+                "nace": { "type": "string" },
+                "naics": { "type": "string" },
+                "profitability_grade": { "type": "string" },
+                "sic": { "type": "string" },
+                "stock_type": { "type": "integer" },
+                "style_box": { "type": "integer" },
+                "value_score": { "type": "number" }
+            }
+        },
+        "ShareClassProfile": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "share_class_id": { "type": "string" },
+                "enterprise_value": { "type": "number" },
+                "market_cap": { "type": "number" },
+                "shares_outstanding": { "type": "number" }
+            }
+        },
+        "ShareClass": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "currency_id": { "type": "string" },
+                "exchange_id": { "type": "string" },
+                "ipo_date": { "type": "string" },
+                "is_primary_share": { "type": "boolean" },
+                "security_type": { "type": "string" },
+                "share_class_description": { "type": "string" },
+                "share_class_id": { "type": "string" },
+                "share_class_status": { "type": "string" },
+                "symbol": { "type": "string" },
+                "trading_status": { "type": "boolean" }
+            }
+        }
+    }
+}

@@ -1,0 +1,57 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-fundamentals-dividends.json",
+    "title": "GetDividends response",
+    "type": "array",
+    "items": { "$ref": "#/$defs/Envelope" },
+    "$defs": {
+        "Envelope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request", "type", "results"],
+            "properties": {
+                "request": { "type": "string" },
+                "type": { "type": "string" },
+                "results": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Result" }
+                }
+            }
+        },
+        "Result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" },
+                "tables": { "$ref": "#/$defs/Tables" }
+            }
+        },
+        "Tables": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "cash_dividends": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/CashDividend" }
+                }
+            }
+        },
+        "CashDividend": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "share_class_id": { "type": "string" },
+                "dividend_type": { "type": "string" },
+                "ex_date": { "type": "string" },
+                "cash_amount": { "type": "number" },
+                "currency_i_d": { "type": "string" },
+                "declaration_date": { "type": "string" },
+                "frequency": { "type": "integer" },
+                "pay_date": { "type": "string" },
+                "record_date": { "type": "string" }
+            }
+        }
+    }
+}
