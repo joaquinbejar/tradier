@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc e3f04b502979698f08c86ae0ea481a67ca1adea1ed059d733e75e2829319155e # shrinks to wire_object = GetAccountHistoryResponseWire { history: AccountHistoryEventsWire { event: [] }, page: 0, total_pages: 0, total_events: 0 }

@@ -22,6 +22,7 @@ mod watchlists;
 
 pub mod types {
     pub use crate::accounts::types::*;
+    pub use crate::common::SortOrder;
     pub use crate::user::types::*;
     pub use crate::utils::OneOrMany;
 }

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/tradier/history.schema.json",
+  "title": "Tradier Account History",
+  "description": "Schema for Tradier account history response payload.",
+  "type": "object",
+  "properties": {
+    "history": {
+      "type": "object",
+      "required": ["event", "page", "total_pages", "total_events"],
+      "properties": {
+        "event": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["date", "type", "amount"],
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Timestamp of the event in ISO 8601 format."
+              },
+              "type": {
+                "type": "string",
+                "enum": ["trade", "option", "ach", "wire", "dividend", "fee", "tax", "journal", "check", "transfer", "adjustment"],
+                "description": "Type of history event."
+              },
+              "amount": {
+                "type": "number",
+                "description": "Total amount of the transaction."
+              },
+              "symbol": {
+                "type": "string",
+                "description": "Ticker symbol associated with the event."
+              },
+              "quantity": {
+                "type": "number",
+                "description": "Number of shares or contracts affected."
+              },
+              "price": {
+                "type": "number",
+                "description": "Price per share or contract."
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable event description."
+              },
+              "commission": {
+                "type": "number",
+                "description": "Commission charged for the transaction."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current page number."
+        },
+        "total_pages": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of pages available."
+        },
+        "total_events": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of historical events."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["history"],
+  "additionalProperties": false
+}

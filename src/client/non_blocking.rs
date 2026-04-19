@@ -4,12 +4,13 @@ use crate::{
     accounts::{
         api::non_blocking::Accounts,
         types::{
-            AccountNumber, GetAccountBalancesResponse, GetAccountOrdersResponse, IncludeTags,
-            Limit, Page,
+            AccountNumber, EventType, GainLossSortBy, GetAccountBalancesResponse,
+            GetAccountGainLossResponse, GetAccountOrdersResponse, IncludeTags, Limit, Page,
         },
     },
+    common::SortOrder,
     config::Config,
-    types::GetAccountPositionsResponse,
+    types::{GetAccountHistoryResponse, GetAccountPositionsResponse},
     user::{api::non_blocking::User, UserProfileResponse},
     utils::Sealed,
     Error, Result,
@@ -97,6 +98,66 @@ impl Accounts for TradierRestClient {
         let raw_response = self.make_service_call(url, bearer_auth).await?;
         raw_response
             .json::<GetAccountPositionsResponse>()
+            .await
+            .map_err(Error::NetworkError)
+    }
+
+    async fn get_account_history(
+        &self,
+        account_id: &AccountNumber,
+        page: Option<Page>,
+        limit: Option<Limit>,
+        event_type: Option<EventType>,
+    ) -> Result<GetAccountHistoryResponse> {
+        let mut url = self.get_request_url(&format!("/v1/accounts/{account_id}/history"))?;
+        {
+            let mut query_pairs = url.query_pairs_mut();
+            if let Some(page) = page {
+                query_pairs.append_pair("page", &page.to_string());
+            }
+            if let Some(limit) = limit {
+                query_pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(event_type) = event_type {
+                query_pairs.append_pair("type", &event_type.to_string());
+            }
+        }
+        let bearer_auth = self.get_bearer_token()?;
+        let raw_response = self.make_service_call(url, bearer_auth).await?;
+        raw_response
+            .json::<GetAccountHistoryResponse>()
+            .await
+            .map_err(Error::NetworkError)
+    }
+
+    async fn get_account_gain_loss(
+        &self,
+        account_number: &AccountNumber,
+        page: Option<Page>,
+        limit: Option<Limit>,
+        sort_by: Option<GainLossSortBy>,
+        sort_order: Option<SortOrder>,
+    ) -> Result<GetAccountGainLossResponse> {
+        let mut url = self.get_request_url(&format!("/v1/accounts/{account_number}/gainloss"))?;
+        {
+            let mut query_pairs = url.query_pairs_mut();
+            if let Some(page) = page {
+                query_pairs.append_pair("page", &page.to_string());
+            }
+            if let Some(limit) = limit {
+                query_pairs.append_pair("limit", &limit.to_string());
+            }
+            if let Some(sort_by) = sort_by {
+                query_pairs.append_pair("sortBy", &sort_by.to_string());
+            }
+            if let Some(sort_order) = sort_order {
+                query_pairs.append_pair("sort", &sort_order.to_string());
+            }
+        }
+        let bearer_auth = self.get_bearer_token()?;
+        let raw_response = self.make_service_call(url, bearer_auth).await?;
+        raw_response
+            .json::<GetAccountGainLossResponse>()
             .await
             .map_err(Error::NetworkError)
     }
