@@ -108,7 +108,7 @@ pub mod blocking {
         /// # Errors
         /// See [`super::non_blocking::Fundamentals::get_corporate_actions`].
         fn get_corporate_actions(&self, symbols: &[Symbol])
-            -> Result<Vec<CorporateActionResponse>>;
+        -> Result<Vec<CorporateActionResponse>>;
 
         /// See [`super::non_blocking::Fundamentals::get_ratios`].
         ///

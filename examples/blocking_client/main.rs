@@ -1,7 +1,7 @@
 use tracing::info;
-use tradier::blocking::{operation::Accounts, operation::User, Client};
-use tradier::utils::logger::setup_logger;
 use tradier::Config;
+use tradier::blocking::{Client, operation::Accounts, operation::User};
+use tradier::utils::logger::setup_logger;
 
 fn main() -> std::result::Result<(), Box<dyn core::error::Error>> {
     setup_logger();

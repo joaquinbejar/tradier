@@ -1,7 +1,7 @@
 [package]
 name = "tradier"
-version = "0.1.2"
-edition = "2021"
+version = "0.2.0"
+edition = "2024"
 authors = ["Joaquin Bejar <jb@taunais.com>"]
 description = "This project involves the development of a Rust library for managing trades and market data using the Tradier broker API. The main objective is to provide an efficient and secure interface for executing trades, retrieving real-time quotes, managing portfolios, and accessing historical market data. The library focuses on leveraging Rust's performance and concurrency advantages, enabling integration into high-frequency trading applications and data-intensive financial processing."
 license = "MIT"

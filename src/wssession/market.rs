@@ -12,7 +12,7 @@ use tracing::{debug, info, trace, warn};
 use tungstenite::Message;
 use url::Url;
 
-use super::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
+use super::session_manager::{GLOBAL_SESSION_MANAGER, SessionManager};
 
 /// `MarketSessionFilter` represents the possible filters for a market WebSocket session.
 ///
@@ -165,8 +165,10 @@ impl<'a> Display for MarketSessionPayload<'a> {
             filter_str,
             self.session_id,
             self.linebreak.map_or("None".to_string(), |v| v.to_string()),
-            self.valid_only.map_or("None".to_string(), |v| v.to_string()),
-            self.advanced_details.map_or("None".to_string(), |v| v.to_string())
+            self.valid_only
+                .map_or("None".to_string(), |v| v.to_string()),
+            self.advanced_details
+                .map_or("None".to_string(), |v| v.to_string())
         )
     }
 }
@@ -306,8 +308,8 @@ where
 mod tests {
     use crate::{
         utils::tests::{
-            create_test_config, free_tcp_port, mock_websocket_server, scripted_websocket_server,
-            ScriptedWsAction,
+            ScriptedWsAction, create_test_config, free_tcp_port, mock_websocket_server,
+            scripted_websocket_server,
         },
         wssession::session_manager::SessionManager,
     };

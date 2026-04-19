@@ -69,12 +69,12 @@ use tracing::{debug, info, trace, warn};
 use tungstenite::Message;
 use url::Url;
 
+use crate::Config;
 use crate::wssession::account_events::AccountEvent;
 use crate::wssession::session::{Session, SessionType};
-use crate::Config;
 use crate::{Error, Result};
 
-use self::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
+use self::session_manager::{GLOBAL_SESSION_MANAGER, SessionManager};
 
 use super::session_manager;
 
@@ -380,7 +380,7 @@ mod tests {
     use super::*;
     use crate::{
         utils::tests::{
-            create_test_config, free_tcp_port, scripted_websocket_server, ScriptedWsAction,
+            ScriptedWsAction, create_test_config, free_tcp_port, scripted_websocket_server,
         },
         wssession::session_manager::SessionManager,
     };

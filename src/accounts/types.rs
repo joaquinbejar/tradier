@@ -393,13 +393,13 @@ mod test {
         GetAccountOrdersResponse, GetAccountPositionsResponse, IncludeTags, Limit, Page,
     };
     use crate::{
+        Result,
         accounts::test_support::{
             GetAccountBalancesResponseWire, GetAccountGainLossResponseWire,
             GetAccountHistoryResponseWire, GetAccountOrdersResponseWire,
             GetAccountPositionsResponseWire,
         },
         types::GetAccountHistoryResponse,
-        Result,
     };
 
     #[test]

@@ -10,11 +10,11 @@
 //! Set `TRADIER_REST_BASE_URL` to `https://sandbox.tradier.com` to point at
 //! the sandbox instead of production.
 use tracing::info;
-use tradier::non_blocking::operation::MarketData;
+use tradier::Config;
 use tradier::non_blocking::Client;
+use tradier::non_blocking::operation::MarketData;
 use tradier::types::{Greeks, Symbol, Symbols};
 use tradier::utils::logger::setup_logger;
-use tradier::Config;
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn core::error::Error>> {

@@ -16,11 +16,11 @@
 
 use futures_util::StreamExt;
 use tracing::{error, info};
+use tradier::Config;
 use tradier::non_blocking::Client;
 use tradier::streaming::http_stream;
 use tradier::utils::logger::setup_logger;
 use tradier::wssession::{MarketSession, MarketSessionFilter};
-use tradier::Config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn core::error::Error>> {

@@ -215,7 +215,7 @@ pub mod blocking {
         /// # Errors
         /// See [`super::non_blocking::MarketData::lookup_option_symbols`].
         fn lookup_option_symbols(&self, underlying: &Symbol)
-            -> Result<LookupOptionSymbolsResponse>;
+        -> Result<LookupOptionSymbolsResponse>;
 
         /// See [`super::non_blocking::MarketData::get_historical_quotes`].
         ///

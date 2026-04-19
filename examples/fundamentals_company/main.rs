@@ -11,11 +11,11 @@
 //! the sandbox instead of production.
 
 use tracing::info;
-use tradier::non_blocking::operation::Fundamentals;
+use tradier::Config;
 use tradier::non_blocking::Client;
+use tradier::non_blocking::operation::Fundamentals;
 use tradier::types::Symbol;
 use tradier::utils::logger::setup_logger;
-use tradier::Config;
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn core::error::Error>> {

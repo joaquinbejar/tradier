@@ -40,7 +40,7 @@ mod tests_setup_logger {
 
     #[test]
     fn test_logger_initialization_info() {
-        env::set_var("LOGLEVEL", "INFO");
+        unsafe { env::set_var("LOGLEVEL", "INFO") };
         setup_logger();
 
         // After setting up the logger, you would typically assert that the logger is working
@@ -54,7 +54,7 @@ mod tests_setup_logger {
 
     #[test]
     fn test_logger_initialization_debug() {
-        env::set_var("LOGLEVEL", "DEBUG");
+        unsafe { env::set_var("LOGLEVEL", "DEBUG") };
         setup_logger();
 
         // Similar to the previous test, check that the global logger has been set
@@ -66,7 +66,7 @@ mod tests_setup_logger {
 
     #[test]
     fn test_logger_initialization_default() {
-        env::remove_var("LOGLEVEL");
+        unsafe { env::remove_var("LOGLEVEL") };
         setup_logger();
 
         // Check that the global logger has been set
@@ -78,7 +78,7 @@ mod tests_setup_logger {
 
     #[test]
     fn test_logger_called_once() {
-        env::set_var("LOGLEVEL", "INFO");
+        unsafe { env::set_var("LOGLEVEL", "INFO") };
 
         setup_logger(); // First call should set up the logger
         setup_logger(); // Second call should not re-initialize
@@ -96,8 +96,8 @@ mod tests_setup_logger_bis {
     use super::*;
     use std::sync::Mutex;
     use tracing::subscriber::with_default;
-    use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::Layer;
+    use tracing_subscriber::layer::SubscriberExt;
 
     static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
@@ -133,7 +133,7 @@ mod tests_setup_logger_bis {
     #[test]
     fn test_default_log_level() {
         let _lock = TEST_MUTEX.lock().unwrap();
-        env::remove_var("LOGLEVEL");
+        unsafe { env::remove_var("LOGLEVEL") };
 
         let (layer, level) = create_test_layer();
         let subscriber = tracing_subscriber::registry().with(layer);
@@ -149,7 +149,7 @@ mod tests_setup_logger_bis {
     #[test]
     fn test_debug_log_level() {
         let _lock = TEST_MUTEX.lock().unwrap();
-        env::set_var("LOGLEVEL", "DEBUG");
+        unsafe { env::set_var("LOGLEVEL", "DEBUG") };
 
         let (layer, level) = create_test_layer();
         let subscriber = tracing_subscriber::registry().with(layer);
@@ -161,13 +161,13 @@ mod tests_setup_logger_bis {
 
         assert_eq!(*level.lock().unwrap(), Some(Level::DEBUG));
 
-        env::remove_var("LOGLEVEL");
+        unsafe { env::remove_var("LOGLEVEL") };
     }
 
     #[test]
     fn test_error_log_level() {
         let _lock = TEST_MUTEX.lock().unwrap();
-        env::set_var("LOGLEVEL", "ERROR");
+        unsafe { env::set_var("LOGLEVEL", "ERROR") };
 
         let (layer, level) = create_test_layer();
         let subscriber = tracing_subscriber::registry().with(layer);
@@ -179,13 +179,13 @@ mod tests_setup_logger_bis {
 
         assert_eq!(*level.lock().unwrap(), Some(Level::ERROR));
 
-        env::remove_var("LOGLEVEL");
+        unsafe { env::remove_var("LOGLEVEL") };
     }
 
     #[test]
     fn test_warn_log_level() {
         let _lock = TEST_MUTEX.lock().unwrap();
-        env::set_var("LOGLEVEL", "WARN");
+        unsafe { env::set_var("LOGLEVEL", "WARN") };
 
         let (layer, level) = create_test_layer();
         let subscriber = tracing_subscriber::registry().with(layer);
@@ -197,13 +197,13 @@ mod tests_setup_logger_bis {
 
         assert_eq!(*level.lock().unwrap(), Some(Level::WARN));
 
-        env::remove_var("LOGLEVEL");
+        unsafe { env::remove_var("LOGLEVEL") };
     }
 
     #[test]
     fn test_trace_log_level() {
         let _lock = TEST_MUTEX.lock().unwrap();
-        env::set_var("LOGLEVEL", "TRACE");
+        unsafe { env::set_var("LOGLEVEL", "TRACE") };
 
         let (layer, level) = create_test_layer();
         let subscriber = tracing_subscriber::registry().with(layer);
@@ -215,13 +215,13 @@ mod tests_setup_logger_bis {
 
         assert_eq!(*level.lock().unwrap(), Some(Level::TRACE));
 
-        env::remove_var("LOGLEVEL");
+        unsafe { env::remove_var("LOGLEVEL") };
     }
 
     #[test]
     fn test_invalid_log_level() {
         let _lock = TEST_MUTEX.lock().unwrap();
-        env::set_var("LOGLEVEL", "INVALID");
+        unsafe { env::set_var("LOGLEVEL", "INVALID") };
 
         let (layer, level) = create_test_layer();
         let subscriber = tracing_subscriber::registry().with(layer);
@@ -233,6 +233,6 @@ mod tests_setup_logger_bis {
 
         assert_eq!(*level.lock().unwrap(), Some(Level::INFO));
 
-        env::remove_var("LOGLEVEL");
+        unsafe { env::remove_var("LOGLEVEL") };
     }
 }

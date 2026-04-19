@@ -2,6 +2,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use url::Url;
 
 use crate::{
+    Error, Result,
     accounts::{
         api::non_blocking::Accounts,
         types::{
@@ -21,19 +22,18 @@ use crate::{
     market_data::{
         api::non_blocking::MarketData,
         types::{
-            format_naive_date, format_timesales_datetime, CalendarMonth, CalendarYear, DelayedFlag,
-            Exchanges, GetCalendarResponse, GetClockResponse, GetEtbSecuritiesResponse,
-            GetHistoricalQuotesResponse, GetOptionChainsResponse, GetOptionExpirationsResponse,
-            GetOptionStrikesResponse, GetQuotesResponse, GetTimeAndSalesResponse, Greeks,
-            HistoryInterval, IncludeAllRoots, IncludeStrikes, IndexesFlag,
-            LookupOptionSymbolsResponse, LookupSymbolResponse, SearchCompaniesResponse,
-            SecurityTypes, SessionFilter, Symbol, Symbols, TimeSalesInterval,
+            CalendarMonth, CalendarYear, DelayedFlag, Exchanges, GetCalendarResponse,
+            GetClockResponse, GetEtbSecuritiesResponse, GetHistoricalQuotesResponse,
+            GetOptionChainsResponse, GetOptionExpirationsResponse, GetOptionStrikesResponse,
+            GetQuotesResponse, GetTimeAndSalesResponse, Greeks, HistoryInterval, IncludeAllRoots,
+            IncludeStrikes, IndexesFlag, LookupOptionSymbolsResponse, LookupSymbolResponse,
+            SearchCompaniesResponse, SecurityTypes, SessionFilter, Symbol, Symbols,
+            TimeSalesInterval, format_naive_date, format_timesales_datetime,
         },
     },
     types::{GetAccountHistoryResponse, GetAccountPositionsResponse},
-    user::{api::non_blocking::User, UserProfileResponse},
+    user::{UserProfileResponse, api::non_blocking::User},
     utils::Sealed,
-    Error, Result,
 };
 
 #[derive(Debug)]
@@ -505,15 +505,15 @@ impl MarketData for TradierRestClient {
         {
             let mut qp = url.query_pairs_mut();
             qp.append_pair("q", q);
-            if let Some(ex) = exchanges {
-                if !ex.is_empty() {
-                    qp.append_pair("exchanges", &ex.to_string());
-                }
+            if let Some(ex) = exchanges
+                && !ex.is_empty()
+            {
+                qp.append_pair("exchanges", &ex.to_string());
             }
-            if let Some(t) = types {
-                if !t.is_empty() {
-                    qp.append_pair("types", &t.to_string());
-                }
+            if let Some(t) = types
+                && !t.is_empty()
+            {
+                qp.append_pair("types", &t.to_string());
             }
         }
         let bearer = self.get_bearer_token()?;
@@ -610,8 +610,8 @@ impl Fundamentals for TradierRestClient {
 mod fundamentals_tests {
     use super::*;
     use crate::{
-        fundamentals::api::non_blocking::Fundamentals as NonBlockingFundamentals,
-        utils::tests::with_env_vars, Config,
+        Config, fundamentals::api::non_blocking::Fundamentals as NonBlockingFundamentals,
+        utils::tests::with_env_vars,
     };
     use httpmock::MockServer;
 

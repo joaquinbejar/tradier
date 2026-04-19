@@ -1,8 +1,8 @@
 use reqwest::Client;
 use std::error::Error;
 use tracing::{error, info};
-use tradier::utils::logger::setup_logger;
 use tradier::Config;
+use tradier::utils::logger::setup_logger;
 
 async fn verify_authentication(
     access_token: &str,

@@ -331,10 +331,12 @@ mod tests_session {
             session2.is_err(),
             "Should not be able to create a second session"
         );
-        assert!(session2
-            .unwrap_err()
-            .to_string()
-            .contains("Session already exists"));
+        assert!(
+            session2
+                .unwrap_err()
+                .to_string()
+                .contains("Session already exists")
+        );
 
         // Drop the first session to reset the state
         drop(session1);

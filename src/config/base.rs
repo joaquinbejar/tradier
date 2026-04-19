@@ -69,9 +69,16 @@ pub struct StreamingConfig {
 /// with redacted sensitive information for security.
 impl fmt::Display for Credentials {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{{\"client_id\":\"[REDACTED]\",\"client_secret\":\"[REDACTED]\",\"access_token\":{},\"refresh_token\":{}}}",
-               self.access_token.as_ref().map_or("null".to_string(), |_| "\"[REDACTED]\"".to_string()),
-               self.refresh_token.as_ref().map_or("null".to_string(), |_| "\"[REDACTED]\"".to_string()))
+        write!(
+            f,
+            "{{\"client_id\":\"[REDACTED]\",\"client_secret\":\"[REDACTED]\",\"access_token\":{},\"refresh_token\":{}}}",
+            self.access_token
+                .as_ref()
+                .map_or("null".to_string(), |_| "\"[REDACTED]\"".to_string()),
+            self.refresh_token
+                .as_ref()
+                .map_or("null".to_string(), |_| "\"[REDACTED]\"".to_string())
+        )
     }
 }
 

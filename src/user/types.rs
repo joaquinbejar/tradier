@@ -55,7 +55,7 @@ mod test {
     use proptest::{prelude::any, proptest};
     use tracing::debug;
 
-    use crate::user::{test_support::GetUserProfileResponseWire, UserProfileResponse};
+    use crate::user::{UserProfileResponse, test_support::GetUserProfileResponseWire};
     proptest! {
         #[test]
         fn test_deserialize_user_profile_response_from_json(response in any::<GetUserProfileResponseWire>()) {
