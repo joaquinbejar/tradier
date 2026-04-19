@@ -1,0 +1,30 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-market-lookup.json",
+    "title": "LookupSymbol response",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "securities": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["security"],
+            "properties": {
+                "security": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["symbol", "exchange", "type", "description"],
+                        "properties": {
+                            "symbol": { "type": "string" },
+                            "exchange": { "type": "string" },
+                            "type": { "type": "string" },
+                            "description": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

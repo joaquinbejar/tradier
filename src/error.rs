@@ -24,6 +24,10 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub enum Error {
     #[error("Unable to parse the string {0} into an AccountId, must be valid ASCII")]
     AccountIdParseError(String),
+
+    /// Error while parsing a market-data domain value (symbol, month, interval, ...).
+    #[error("Market data parse error: {0}")]
+    MarketDataParseError(String),
     /// Error when parsing a URL fails.
     ///
     /// # Source

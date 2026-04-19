@@ -1,0 +1,47 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-market-option-expirations.json",
+    "title": "GetOptionExpirations response",
+    "type": "object",
+    "required": ["expirations"],
+    "additionalProperties": false,
+    "properties": {
+        "expirations": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "date": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "expiration": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/ExpirationEntry" }
+                }
+            }
+        }
+    },
+    "$defs": {
+        "ExpirationEntry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["date"],
+            "properties": {
+                "date": { "type": "string" },
+                "contract_size": { "type": "integer", "minimum": 0 },
+                "expiration_type": { "type": "string" },
+                "strikes": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["strike"],
+                    "properties": {
+                        "strike": {
+                            "type": "array",
+                            "items": { "type": "number" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

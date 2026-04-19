@@ -1,0 +1,20 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-market-option-chains.json",
+    "title": "GetOptionChains response",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["option"],
+            "properties": {
+                "option": {
+                    "type": "array",
+                    "items": { "type": "object" }
+                }
+            }
+        }
+    }
+}
