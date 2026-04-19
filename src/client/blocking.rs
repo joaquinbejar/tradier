@@ -31,6 +31,14 @@ use crate::{
     accounts::{api::blocking::Accounts, api::non_blocking::Accounts as NonBlockingAccounts},
     client::non_blocking::TradierRestClient as AsyncClient,
     common::SortOrder,
+    fundamentals::{
+        api::blocking::Fundamentals,
+        api::non_blocking::Fundamentals as NonBlockingFundamentals,
+        types::{
+            CompanyResponse, CorporateActionResponse, CorporateCalendarResponse, DividendResponse,
+            FinancialsResponse, RatiosResponse, StatisticsResponse,
+        },
+    },
     market_data::{
         api::blocking::MarketData,
         api::non_blocking::MarketData as NonBlockingMarketData,
@@ -309,6 +317,49 @@ impl MarketData for BlockingTradierRestClient {
     ) -> Result<LookupSymbolResponse> {
         self.runtime
             .block_on(self.rest_client.lookup_symbol(q, exchanges, types))
+    }
+}
+
+impl Fundamentals for BlockingTradierRestClient {
+    fn get_company(&self, symbols: &[Symbol]) -> Result<Vec<CompanyResponse>> {
+        self.runtime
+            .block_on(self.rest_client.get_company(symbols))
+    }
+
+    fn get_corporate_calendars(
+        &self,
+        symbols: &[Symbol],
+    ) -> Result<Vec<CorporateCalendarResponse>> {
+        self.runtime
+            .block_on(self.rest_client.get_corporate_calendars(symbols))
+    }
+
+    fn get_dividends(&self, symbols: &[Symbol]) -> Result<Vec<DividendResponse>> {
+        self.runtime
+            .block_on(self.rest_client.get_dividends(symbols))
+    }
+
+    fn get_corporate_actions(
+        &self,
+        symbols: &[Symbol],
+    ) -> Result<Vec<CorporateActionResponse>> {
+        self.runtime
+            .block_on(self.rest_client.get_corporate_actions(symbols))
+    }
+
+    fn get_ratios(&self, symbols: &[Symbol]) -> Result<Vec<RatiosResponse>> {
+        self.runtime
+            .block_on(self.rest_client.get_ratios(symbols))
+    }
+
+    fn get_financials(&self, symbols: &[Symbol]) -> Result<Vec<FinancialsResponse>> {
+        self.runtime
+            .block_on(self.rest_client.get_financials(symbols))
+    }
+
+    fn get_statistics(&self, symbols: &[Symbol]) -> Result<Vec<StatisticsResponse>> {
+        self.runtime
+            .block_on(self.rest_client.get_statistics(symbols))
     }
 }
 
@@ -1339,6 +1390,496 @@ mod market_data_tests {
         cfg.rest_api.base_url = "http://127.0.0.1:1".into();
         let client = BlockingTradierRestClient::new(cfg).expect("client");
         let resp = client.get_etb_securities();
+        assert!(resp.is_err());
+    }
+}
+
+#[cfg(test)]
+mod fundamentals_tests {
+    use super::BlockingTradierRestClient;
+    use crate::{
+        common::Symbol,
+        fundamentals::{
+            api::blocking::Fundamentals,
+            test_support::{
+                CompanyResponseArrayWire, CorporateActionResponseArrayWire,
+                CorporateCalendarResponseArrayWire, DividendResponseArrayWire,
+                FinancialsResponseArrayWire, RatiosResponseArrayWire, StatisticsResponseArrayWire,
+            },
+        },
+        utils::tests::with_env_vars,
+        Config,
+    };
+    use httpmock::MockServer;
+    use proptest::prelude::*;
+    use std::cell::RefCell;
+
+    fn make_symbol(s: &str) -> Symbol {
+        s.parse().expect("valid symbol")
+    }
+
+    fn make_client(server: &MockServer) -> BlockingTradierRestClient {
+        let mut cfg = Config::new();
+        cfg.rest_api.base_url = server.base_url();
+        BlockingTradierRestClient::new(cfg).expect("client to initialize")
+    }
+
+    fn run_with_env<F: FnOnce()>(server: &MockServer, f: F) {
+        with_env_vars(
+            vec![
+                ("TRADIER_REST_BASE_URL", &server.base_url()),
+                ("TRADIER_ACCESS_TOKEN", "testToken"),
+            ],
+            f,
+        );
+    }
+
+    // -------- get_company -----------------------------------------------
+
+    #[test]
+    fn test_get_company_happy_path_verifies_query_and_header() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(wire in any::<CompanyResponseArrayWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/beta/markets/fundamentals/company")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL,MSFT");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&wire).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_company(&[make_symbol("AAPL"), make_symbol("MSFT")]);
+                    op.assert();
+                    assert!(resp.is_ok(), "resp: {:?}", resp.err());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_company_bad_request_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/company");
+            then.status(400)
+                .header("content-type", "application/json")
+                .body(r#"{"fault":{"faultstring":"bad"}}"#);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_company(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_company_server_error_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/company");
+            then.status(500);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_company(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_company_malformed_body_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/company");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_company(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // -------- get_corporate_calendars -----------------------------------
+
+    #[test]
+    fn test_get_corporate_calendars_happy_path_verifies_query_and_header() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(wire in any::<CorporateCalendarResponseArrayWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/beta/markets/fundamentals/corporate_calendars")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&wire).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_corporate_calendars(&[make_symbol("AAPL")]);
+                    op.assert();
+                    assert!(resp.is_ok(), "resp: {:?}", resp.err());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_corporate_calendars_server_error_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/corporate_calendars");
+            then.status(503);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_corporate_calendars(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_corporate_calendars_malformed_body_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/corporate_calendars");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_corporate_calendars(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // -------- get_dividends ---------------------------------------------
+
+    #[test]
+    fn test_get_dividends_happy_path_verifies_query_and_header() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(wire in any::<DividendResponseArrayWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/beta/markets/fundamentals/dividends")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL,MSFT");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&wire).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client
+                        .get_dividends(&[make_symbol("AAPL"), make_symbol("MSFT")]);
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_dividends_unauthorized_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/dividends");
+            then.status(401);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_dividends(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_dividends_malformed_body_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/dividends");
+            then.status(200).body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_dividends(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // -------- get_corporate_actions -------------------------------------
+
+    #[test]
+    fn test_get_corporate_actions_happy_path_verifies_query_and_header() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(wire in any::<CorporateActionResponseArrayWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/beta/markets/fundamentals/corporate_actions")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&wire).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_corporate_actions(&[make_symbol("AAPL")]);
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_corporate_actions_bad_request_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/corporate_actions");
+            then.status(400);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_corporate_actions(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_corporate_actions_malformed_body_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/corporate_actions");
+            then.status(200).body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_corporate_actions(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // -------- get_ratios ------------------------------------------------
+
+    #[test]
+    fn test_get_ratios_happy_path_verifies_query_and_header() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(wire in any::<RatiosResponseArrayWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/beta/markets/fundamentals/ratios")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&wire).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_ratios(&[make_symbol("AAPL")]);
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_ratios_server_error_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/ratios");
+            then.status(500);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_ratios(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_ratios_malformed_body_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/ratios");
+            then.status(200).body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_ratios(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // -------- get_financials --------------------------------------------
+
+    #[test]
+    fn test_get_financials_happy_path_verifies_query_and_header() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(wire in any::<FinancialsResponseArrayWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/beta/markets/fundamentals/financials")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&wire).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_financials(&[make_symbol("AAPL")]);
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_financials_server_error_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/financials");
+            then.status(502);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_financials(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_financials_malformed_body_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/financials");
+            then.status(200).body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_financials(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    // -------- get_statistics --------------------------------------------
+
+    #[test]
+    fn test_get_statistics_happy_path_verifies_query_and_header() {
+        let server = RefCell::new(MockServer::start());
+        proptest!(
+            ProptestConfig::with_cases(8),
+            |(wire in any::<StatisticsResponseArrayWire>())| {
+                let server = server.borrow_mut();
+                let mut op = server.mock(|when, then| {
+                    when.method(httpmock::Method::GET)
+                        .path("/beta/markets/fundamentals/statistics")
+                        .header("accept", "application/json")
+                        .query_param("symbols", "AAPL,MSFT,SPY");
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .body(serde_json::to_vec(&wire).expect("serialize"));
+                });
+                run_with_env(&server, || {
+                    let client = make_client(&server);
+                    let resp = client.get_statistics(&[
+                        make_symbol("AAPL"),
+                        make_symbol("MSFT"),
+                        make_symbol("SPY"),
+                    ]);
+                    op.assert();
+                    assert!(resp.is_ok());
+                });
+                op.delete();
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_statistics_server_error_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/statistics");
+            then.status(500);
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_statistics(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_get_statistics_malformed_body_returns_error() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.path("/beta/markets/fundamentals/statistics");
+            then.status(200).body("{ not-json");
+        });
+        run_with_env(&server, || {
+            let client = make_client(&server);
+            let resp = client.get_statistics(&[make_symbol("AAPL")]);
+            assert!(resp.is_err());
+            op.assert();
+        });
+    }
+
+    #[test]
+    fn test_network_error_when_server_refuses_connection_fundamentals() {
+        let mut cfg = Config::new();
+        cfg.credentials.access_token = Some("t".into());
+        cfg.rest_api.base_url = "http://127.0.0.1:1".into();
+        let client = BlockingTradierRestClient::new(cfg).expect("client");
+        let resp = client.get_company(&[make_symbol("AAPL")]);
         assert!(resp.is_err());
     }
 }
