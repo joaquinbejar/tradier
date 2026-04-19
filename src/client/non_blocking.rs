@@ -11,6 +11,13 @@ use crate::{
     },
     common::SortOrder,
     config::Config,
+    fundamentals::{
+        api::non_blocking::Fundamentals,
+        types::{
+            CompanyResponse, CorporateActionResponse, CorporateCalendarResponse, DividendResponse,
+            FinancialsResponse, RatiosResponse, StatisticsResponse,
+        },
+    },
     market_data::{
         api::non_blocking::MarketData,
         types::{
@@ -515,5 +522,158 @@ impl MarketData for TradierRestClient {
             .json::<LookupSymbolResponse>()
             .await
             .map_err(Error::NetworkError)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Fundamentals (beta) impl
+// -----------------------------------------------------------------------------
+
+impl TradierRestClient {
+    /// Shared helper for fundamentals endpoints: build the URL with the CSV
+    /// `symbols` query param and GET/parse the JSON array response.
+    async fn get_fundamentals_array<T>(&self, path: &str, symbols: &[Symbol]) -> Result<Vec<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let mut url = self.get_request_url(path)?;
+        url.query_pairs_mut()
+            .append_pair("symbols", &symbols_to_csv(symbols));
+        let bearer = self.get_bearer_token()?;
+        self.make_service_call(url, bearer)
+            .await?
+            .json::<Vec<T>>()
+            .await
+            .map_err(Error::NetworkError)
+    }
+}
+
+/// Render a slice of [`Symbol`] as a comma-separated CSV, as required by
+/// all fundamentals endpoints.
+#[inline]
+fn symbols_to_csv(symbols: &[Symbol]) -> String {
+    let mut out = String::with_capacity(symbols.len() * 6);
+    for (i, s) in symbols.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(s.as_str());
+    }
+    out
+}
+
+#[async_trait::async_trait]
+impl Fundamentals for TradierRestClient {
+    async fn get_company(&self, symbols: &[Symbol]) -> Result<Vec<CompanyResponse>> {
+        self.get_fundamentals_array("/beta/markets/fundamentals/company", symbols)
+            .await
+    }
+
+    async fn get_corporate_calendars(
+        &self,
+        symbols: &[Symbol],
+    ) -> Result<Vec<CorporateCalendarResponse>> {
+        self.get_fundamentals_array("/beta/markets/fundamentals/corporate_calendars", symbols)
+            .await
+    }
+
+    async fn get_dividends(&self, symbols: &[Symbol]) -> Result<Vec<DividendResponse>> {
+        self.get_fundamentals_array("/beta/markets/fundamentals/dividends", symbols)
+            .await
+    }
+
+    async fn get_corporate_actions(
+        &self,
+        symbols: &[Symbol],
+    ) -> Result<Vec<CorporateActionResponse>> {
+        self.get_fundamentals_array("/beta/markets/fundamentals/corporate_actions", symbols)
+            .await
+    }
+
+    async fn get_ratios(&self, symbols: &[Symbol]) -> Result<Vec<RatiosResponse>> {
+        self.get_fundamentals_array("/beta/markets/fundamentals/ratios", symbols)
+            .await
+    }
+
+    async fn get_financials(&self, symbols: &[Symbol]) -> Result<Vec<FinancialsResponse>> {
+        self.get_fundamentals_array("/beta/markets/fundamentals/financials", symbols)
+            .await
+    }
+
+    async fn get_statistics(&self, symbols: &[Symbol]) -> Result<Vec<StatisticsResponse>> {
+        self.get_fundamentals_array("/beta/markets/fundamentals/statistics", symbols)
+            .await
+    }
+}
+
+#[cfg(test)]
+mod fundamentals_tests {
+    use super::*;
+    use crate::{
+        fundamentals::api::non_blocking::Fundamentals as NonBlockingFundamentals,
+        utils::tests::with_env_vars, Config,
+    };
+    use httpmock::MockServer;
+
+    fn make_symbol(s: &str) -> Symbol {
+        s.parse().expect("valid symbol")
+    }
+
+    fn make_client(server: &MockServer) -> TradierRestClient {
+        let mut cfg = Config::new();
+        cfg.rest_api.base_url = server.base_url();
+        TradierRestClient::new(cfg)
+    }
+
+    fn run_with_env<F: FnOnce()>(server: &MockServer, f: F) {
+        with_env_vars(
+            vec![
+                ("TRADIER_REST_BASE_URL", &server.base_url()),
+                ("TRADIER_ACCESS_TOKEN", "testToken"),
+            ],
+            f,
+        );
+    }
+
+    #[test]
+    fn test_symbols_to_csv_joins_ascii_symbols() {
+        let v = [make_symbol("AAPL"), make_symbol("MSFT"), make_symbol("SPY")];
+        assert_eq!(symbols_to_csv(&v), "AAPL,MSFT,SPY");
+    }
+
+    #[test]
+    fn test_symbols_to_csv_empty_slice_returns_empty() {
+        assert_eq!(symbols_to_csv(&[]), "");
+    }
+
+    // These are stripped-down smoke tests for the async client. The
+    // blocking client file exercises the full happy/4xx/5xx/malformed
+    // matrix for each of the seven endpoints.
+    #[test]
+    fn test_get_company_builds_expected_request() {
+        let server = MockServer::start();
+        let op = server.mock(|when, then| {
+            when.method(httpmock::Method::GET)
+                .path("/beta/markets/fundamentals/company")
+                .header("accept", "application/json")
+                .query_param("symbols", "AAPL,MSFT");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body("[]");
+        });
+        run_with_env(&server, || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("runtime");
+            rt.block_on(async {
+                let client = make_client(&server);
+                let resp = client
+                    .get_company(&[make_symbol("AAPL"), make_symbol("MSFT")])
+                    .await;
+                assert!(resp.is_ok());
+            });
+            op.assert();
+        });
     }
 }

@@ -1,0 +1,96 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-fundamentals-ratios.json",
+    "title": "GetRatios response",
+    "type": "array",
+    "items": { "$ref": "#/$defs/Envelope" },
+    "$defs": {
+        "Envelope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request", "type", "results"],
+            "properties": {
+                "request": { "type": "string" },
+                "type": { "type": "string" },
+                "results": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Result" }
+                }
+            }
+        },
+        "Result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" },
+                "tables": { "$ref": "#/$defs/Tables" }
+            }
+        },
+        "Tables": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "operation_ratios_restate": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/OperationRatios" }
+                },
+                "earning_ratios_restate": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/EarningRatios" }
+                },
+                "valuation_ratios": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/ValuationRatios" }
+                }
+            }
+        },
+        "OperationRatios": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "period": { "type": "string" },
+                "report_type": { "type": "string" },
+                "fiscal_year_end": { "type": "integer" },
+                "assets_turnover": { "type": "number" },
+                "debt_to_assets": { "type": "number" },
+                "gross_margin": { "type": "number" },
+                "net_margin": { "type": "number" },
+                "operation_margin": { "type": "number" },
+                "quick_ratio": { "type": "number" },
+                "r_o_a": { "type": "number" },
+                "r_o_e": { "type": "number" },
+                "r_o_i_c": { "type": "number" }
+            }
+        },
+        "EarningRatios": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "period": { "type": "string" },
+                "report_type": { "type": "string" },
+                "fiscal_year_end": { "type": "integer" },
+                "diluted_eps_growth": { "type": "number" },
+                "d_p_s_growth": { "type": "number" },
+                "equity_per_share_growth": { "type": "number" }
+            }
+        },
+        "ValuationRatios": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "as_of_date": { "type": "string" },
+                "dividend_yield": { "type": "number" },
+                "earning_yield": { "type": "number" },
+                "forward_dividend_yield": { "type": "number" },
+                "forward_p_e_ratio": { "type": "number" },
+                "payout_ratio": { "type": "number" },
+                "p_b_ratio": { "type": "number" },
+                "p_e_ratio": { "type": "number" },
+                "peg_ratio": { "type": "number" },
+                "p_s_ratio": { "type": "number" }
+            }
+        }
+    }
+}

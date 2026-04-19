@@ -1,0 +1,73 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-fundamentals-statistics.json",
+    "title": "GetStatistics response",
+    "type": "array",
+    "items": { "$ref": "#/$defs/Envelope" },
+    "$defs": {
+        "Envelope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request", "type", "results"],
+            "properties": {
+                "request": { "type": "string" },
+                "type": { "type": "string" },
+                "results": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Result" }
+                }
+            }
+        },
+        "Result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" },
+                "tables": { "$ref": "#/$defs/Tables" }
+            }
+        },
+        "Tables": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "price_statistics": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/PriceStatistics" }
+                },
+                "trailing_returns": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/TrailingReturns" }
+                }
+            }
+        },
+        "PriceStatistics": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "period": { "type": "string" },
+                "as_of_date": { "type": "string" },
+                "moving_average_price": { "type": "number" },
+                "close_price": { "type": "number" },
+                "high_price": { "type": "number" },
+                "low_price": { "type": "number" },
+                "percent_change": { "type": "number" },
+                "price_change": { "type": "number" },
+                "total_volume": { "type": "number" },
+                "average_volume": { "type": "number" },
+                "arithmetic_mean": { "type": "number" },
+                "standard_deviation": { "type": "number" }
+            }
+        },
+        "TrailingReturns": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "period": { "type": "string" },
+                "as_of_date": { "type": "string" },
+                "total_return": { "type": "number" }
+            }
+        }
+    }
+}

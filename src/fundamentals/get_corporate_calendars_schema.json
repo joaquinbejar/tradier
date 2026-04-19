@@ -1,0 +1,57 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/tradier-fundamentals-corporate-calendars.json",
+    "title": "GetCorporateCalendars response",
+    "type": "array",
+    "items": { "$ref": "#/$defs/Envelope" },
+    "$defs": {
+        "Envelope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["request", "type", "results"],
+            "properties": {
+                "request": { "type": "string" },
+                "type": { "type": "string" },
+                "results": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/Result" }
+                }
+            }
+        },
+        "Result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "id": { "type": "string" },
+                "tables": { "$ref": "#/$defs/Tables" }
+            }
+        },
+        "Tables": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "corporate_calendars": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/CalendarEvent" }
+                }
+            }
+        },
+        "CalendarEvent": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "company_id": { "type": "string" },
+                "begin_date_time": { "type": "string" },
+                "end_date_time": { "type": "string" },
+                "event_type": { "type": "integer" },
+                "estimated_date_for_next_event": { "type": "string" },
+                "event": { "type": "string" },
+                "event_fiscal_year": { "type": "integer" },
+                "event_status": { "type": "string" },
+                "time_zone": { "type": "string" }
+            }
+        }
+    }
+}
