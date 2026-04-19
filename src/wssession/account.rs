@@ -58,13 +58,126 @@
 //!
 //! For additional details on the API, refer to the [Tradier Account WebSocket documentation](https://documentation.tradier.com/brokerage-api/streaming/wss-account-websocket).
 
+use std::borrow::Cow;
+use std::fmt::{Display, Formatter};
+
+use futures_util::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
+use tokio_tungstenite::connect_async;
+use tracing::{error, info};
+use tungstenite::Message;
+use url::Url;
+
 use crate::wssession::session::{Session, SessionType};
 use crate::Config;
-use crate::Result;
+use crate::{Error, Result};
 
 use self::session_manager::{SessionManager, GLOBAL_SESSION_MANAGER};
 
 use super::session_manager;
+
+/// Filter for account WebSocket events. See
+/// <https://documentation.tradier.com/brokerage-api/streaming/wss-account-websocket>.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(try_from = "&str", into = "String")]
+#[non_exhaustive]
+pub enum AccountSessionEvent {
+    /// Order status / lifecycle updates.
+    Order,
+    /// Position changes.
+    Position,
+    /// Trade events.
+    Trade,
+    /// Fill (execution) events.
+    Fill,
+    /// Account dropped / session ended.
+    Drop,
+}
+
+impl AsRef<str> for AccountSessionEvent {
+    #[inline]
+    fn as_ref(&self) -> &'static str {
+        match self {
+            AccountSessionEvent::Order => "order",
+            AccountSessionEvent::Position => "position",
+            AccountSessionEvent::Trade => "trade",
+            AccountSessionEvent::Fill => "fill",
+            AccountSessionEvent::Drop => "drop",
+        }
+    }
+}
+
+impl TryFrom<&str> for AccountSessionEvent {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        match value {
+            "order" => Ok(AccountSessionEvent::Order),
+            "position" => Ok(AccountSessionEvent::Position),
+            "trade" => Ok(AccountSessionEvent::Trade),
+            "fill" => Ok(AccountSessionEvent::Fill),
+            "drop" => Ok(AccountSessionEvent::Drop),
+            _ => Err(Error::UnsupportedAccountEvent(value.to_owned())),
+        }
+    }
+}
+
+impl From<AccountSessionEvent> for String {
+    fn from(val: AccountSessionEvent) -> Self {
+        val.as_ref().to_owned()
+    }
+}
+
+/// Payload for a Tradier Account WebSocket session.
+///
+/// The server expects `events` and `sessionid`. `excludeAccounts` is
+/// optional and lets callers mask specific sub-accounts from the stream.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AccountSessionPayload<'a> {
+    pub events: Cow<'a, [AccountSessionEvent]>,
+    #[serde(rename = "sessionid")]
+    pub session_id: Cow<'a, str>,
+    #[serde(rename = "excludeAccounts", skip_serializing_if = "Option::is_none")]
+    pub exclude_accounts: Option<Cow<'a, [String]>>,
+}
+
+#[bon::bon]
+impl<'a> AccountSessionPayload<'a> {
+    #[builder(builder_type(vis = "pub"))]
+    fn new(
+        events: &'a [AccountSessionEvent],
+        session_id: &'a str,
+        exclude_accounts: Option<&'a [String]>,
+    ) -> Self {
+        AccountSessionPayload {
+            events: Cow::Borrowed(events),
+            session_id: Cow::Borrowed(session_id),
+            exclude_accounts: exclude_accounts.map(Cow::Borrowed),
+        }
+    }
+
+    /// Converts the payload to a WebSocket `Message` for sending.
+    ///
+    /// # Errors
+    /// Returns [`Error::JsonParsingError`] if the payload cannot be
+    /// serialized as JSON.
+    pub fn get_message(&self) -> Result<Message> {
+        serde_json::to_string(self)
+            .map(|s| Message::Text(s.into()))
+            .map_err(Into::into)
+    }
+}
+
+impl<'a> Display for AccountSessionPayload<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let events: Vec<&str> = self.events.iter().map(|e| e.as_ref()).collect();
+        write!(
+            f,
+            "AccountSessionPayload {{ events: {:?}, session_id: {}, exclude_accounts: {:?} }}",
+            events, self.session_id, self.exclude_accounts,
+        )
+    }
+}
 
 /// `AccountSession` is a wrapper around a `Session` specifically for account-level WebSocket interactions.
 ///
@@ -178,6 +291,50 @@ impl<'a> AccountSession<'a> {
     pub fn get_websocket_url(&self) -> &str {
         self.0.get_websocket_url()
     }
+
+    /// Opens the account WebSocket, sends the payload, and streams events
+    /// until the peer closes the connection or an error occurs.
+    ///
+    /// # Errors
+    /// - [`Error::UrlParsingError`] if the session URL is invalid.
+    /// - [`Error::WebSocketError`] if the handshake, send, or receive fails.
+    /// - [`Error::JsonParsingError`] if the payload cannot be serialized.
+    ///
+    /// Reconnect policy is the caller's responsibility.
+    pub async fn ws_stream(&self, payload: AccountSessionPayload<'a>) -> Result<()> {
+        let uri = self.0.get_websocket_url();
+        let url = Url::parse(uri)?;
+
+        info!(url = %uri, "Connecting to account stream");
+        let (ws_stream, _) = connect_async(url.as_str()).await.map_err(Box::new)?;
+        let (mut write, mut read) = ws_stream.split();
+
+        let message = payload.get_message()?;
+        write.send(message).await.map_err(Box::new)?;
+        info!("Sent account session payload");
+
+        while let Some(message) = read.next().await {
+            match message {
+                Ok(Message::Text(text)) => {
+                    info!(bytes = text.len(), "account event text");
+                }
+                Ok(Message::Binary(data)) => {
+                    info!(bytes = data.len(), "account event binary");
+                }
+                Ok(Message::Close(frame)) => {
+                    info!(?frame, "account stream closed");
+                    break;
+                }
+                Err(e) => {
+                    error!(error = %e, "account stream read error");
+                    return Err(Error::WebSocketError(Box::new(e)));
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -186,6 +343,53 @@ mod tests {
 
     use super::*;
     use crate::{utils::tests::create_test_config, wssession::session_manager::SessionManager};
+
+    #[test]
+    fn test_account_session_event_as_ref() {
+        assert_eq!(AccountSessionEvent::Order.as_ref(), "order");
+        assert_eq!(AccountSessionEvent::Position.as_ref(), "position");
+        assert_eq!(AccountSessionEvent::Trade.as_ref(), "trade");
+        assert_eq!(AccountSessionEvent::Fill.as_ref(), "fill");
+        assert_eq!(AccountSessionEvent::Drop.as_ref(), "drop");
+    }
+
+    #[test]
+    fn test_account_session_event_try_from_rejects_unknown() {
+        let result = AccountSessionEvent::try_from("bogus");
+        assert!(matches!(result, Err(Error::UnsupportedAccountEvent(_))));
+    }
+
+    #[test]
+    fn test_account_session_payload_get_message_serializes_events_and_session_id() {
+        let events = [AccountSessionEvent::Order, AccountSessionEvent::Fill];
+        let payload = AccountSessionPayload::builder()
+            .events(&events)
+            .session_id("sess-123")
+            .build();
+        let msg = payload.get_message().expect("serialize");
+        let tungstenite::Message::Text(text) = msg else {
+            panic!("expected text frame");
+        };
+        assert!(text.contains("\"events\":[\"order\",\"fill\"]"));
+        assert!(text.contains("\"sessionid\":\"sess-123\""));
+        assert!(!text.contains("excludeAccounts"));
+    }
+
+    #[test]
+    fn test_account_session_payload_get_message_includes_exclude_accounts_when_set() {
+        let events = [AccountSessionEvent::Order];
+        let excluded = ["VA1234".to_owned()];
+        let payload = AccountSessionPayload::builder()
+            .events(&events)
+            .session_id("sess-123")
+            .exclude_accounts(&excluded)
+            .build();
+        let msg = payload.get_message().expect("serialize");
+        let tungstenite::Message::Text(text) = msg else {
+            panic!("expected text frame");
+        };
+        assert!(text.contains("\"excludeAccounts\":[\"VA1234\"]"));
+    }
 
     // This test breaks if you have valid Config env vars set. The method we have to fix this
     // is the `crate::utils::with_env_vars()` method, but this method doesn't support async

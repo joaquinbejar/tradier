@@ -28,6 +28,6 @@ mod market;
 pub(crate) mod session;
 pub(crate) mod session_manager;
 
-pub use account::AccountSession;
+pub use account::{AccountSession, AccountSessionEvent, AccountSessionPayload};
 pub use events::{MarketEvent, Quote, Summary, Timesale, Trade, TradeSession, Tradex};
 pub use market::{MarketSession, MarketSessionFilter, MarketSessionPayload};
