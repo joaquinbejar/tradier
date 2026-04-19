@@ -86,6 +86,33 @@ pub enum Error {
     #[error("WebSocket error: {0}")]
     WebSocketError(#[from] Box<tungstenite::Error>),
 
+    /// Error raised when a streaming event payload cannot be decoded into a
+    /// known [`crate::wssession::MarketEvent`] variant.
+    ///
+    /// # Parameters
+    /// - `String`: The raw payload line that failed to decode.
+    /// - `String`: The underlying `serde_json` error message.
+    #[error("Failed to decode streaming event: {1}. Payload: {0}")]
+    StreamDecodeError(String, String),
+
+    /// Error raised when a decimal field received as a string cannot be
+    /// parsed to `f64`.
+    ///
+    /// # Parameters
+    /// - `String`: The offending value.
+    /// - `String`: The underlying parse error message.
+    #[error("Failed to parse {0} as f64: {1}")]
+    ParseFloat(String, String),
+
+    /// Error raised when an integer field received as a string cannot be
+    /// parsed to `u64`.
+    ///
+    /// # Parameters
+    /// - `String`: The offending value.
+    /// - `String`: The underlying parse error message.
+    #[error("Failed to parse {0} as u64: {1}")]
+    ParseInt(String, String),
+
     /// Represents any unexpected error, including a custom message for additional context.
     ///
     /// # Parameters
