@@ -1,5 +1,6 @@
-use crate::accounts::types::AccountNumber;
-use crate::accounts::types::GetAccountBalancesResponse;
+use crate::accounts::types::{
+    AccountNumber, EventType, GetAccountBalancesResponse, GetAccountHistoryResponse, Limit, Page,
+};
 use crate::types::GetAccountPositionsResponse;
 use crate::{error::Result, utils::Sealed};
 
@@ -17,6 +18,14 @@ pub mod non_blocking {
             &self,
             account_number: &AccountNumber,
         ) -> Result<GetAccountPositionsResponse>;
+
+        async fn get_account_history(
+            &self,
+            account_number: &AccountNumber,
+            page: Option<Page>,
+            limit: Option<Limit>,
+            event_type: Option<EventType>,
+        ) -> Result<GetAccountHistoryResponse>;
     }
 }
 pub mod blocking {
@@ -31,5 +40,12 @@ pub mod blocking {
             &self,
             account_number: &AccountNumber,
         ) -> Result<GetAccountPositionsResponse>;
+        fn get_account_history(
+            &self,
+            account_number: &AccountNumber,
+            page: Option<Page>,
+            limit: Option<Limit>,
+            event_type: Option<EventType>,
+        ) -> Result<GetAccountHistoryResponse>;
     }
 }
