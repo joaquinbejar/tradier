@@ -74,11 +74,16 @@ pub struct AccountEventWire {
     #[serde(rename = "type")]
     event_type: EventTypeWire,
     amount: f64,
-    symbol: String,
-    quantity: f64,
-    price: f64,
-    description: String,
-    commission: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    symbol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quantity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    commission: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, proptest_derive::Arbitrary)]
@@ -98,7 +103,6 @@ pub enum EventTypeWire {
     Adjustment,
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -106,7 +110,10 @@ mod test {
     use serde_json::{json, Value};
     use std::fs::OpenOptions;
 
-    static PATH: &str = "src/accounts/get_account_history_schema.json";
+    static PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/accounts/get_account_history_schema.json"
+    );
 
     #[test]
     fn should_fail_to_process_an_empty_object() {

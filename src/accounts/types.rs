@@ -171,28 +171,28 @@ pub struct GetAccountPositionsResponse {
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct GetAccountHistoryResponse {
-    history: AccountHistoryEvents,
+    pub history: AccountHistoryEvents,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct AccountHistoryEvents {
-    event: Vec<AccountEvent>,
-    page: u32,
-    total_pages: u32,
-    total_events: u32,
+    pub event: Vec<AccountEvent>,
+    pub page: u32,
+    pub total_pages: u32,
+    pub total_events: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct AccountEvent {
-    date: DateTime<Utc>,
+    pub date: DateTime<Utc>,
     #[serde(rename = "type")]
-    event_type: EventType,
-    amount: f64,
-    symbol: Option<String>,
-    quantity: Option<f64>,
-    price: Option<f64>,
-    description: Option<String>,
-    commission: Option<f64>,
+    pub event_type: EventType,
+    pub amount: f64,
+    pub symbol: Option<String>,
+    pub quantity: Option<f64>,
+    pub price: Option<f64>,
+    pub description: Option<String>,
+    pub commission: Option<f64>,
 }
 
 #[cfg(test)]
