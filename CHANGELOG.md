@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies updated to latest stable versions (reqwest 0.13, tokio-tungstenite/tungstenite 0.30, tokio 1.53, bon 3.10, jsonschema 0.56, proptest 1.11, proptest-derive 0.8)
+
 ### CI
 
 - **changelog**: Install git-cliff from release binary to avoid archived buster base
