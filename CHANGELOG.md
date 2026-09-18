@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-18
+
 ### Changed
 
 - Dependencies updated to latest stable versions (reqwest 0.13, tokio-tungstenite/tungstenite 0.30, tokio 1.53, bon 3.10, jsonschema 0.56, proptest 1.11, proptest-derive 0.8)
+- HTTP client TLS backend now defaults to rustls instead of native-tls, following the reqwest 0.13 default. This does not change the public API (semver-checks passes) but may affect certificate handling on platforms relying on the system trust store.
 
 ### CI
 
