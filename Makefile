@@ -70,6 +70,6 @@ publish:
 
 .PHONY: coverage
 coverage:
-	cargo install cargo-tarpaulin
+	cargo install cargo-tarpaulin --locked --version '>=0.37.5'
 	mkdir -p target/coverage
 	cargo tarpaulin
