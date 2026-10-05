@@ -87,8 +87,14 @@ jobs:
       # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       # INSTALL TARPAULIN FOR CODE COVERAGE
       # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      # ~/.cargo/bin is cached, so an older cargo-tarpaulin may already be
+      # present; Rust 1.99+ coverage data needs >= 0.37.5.
       - name: Install Tarpaulin.
-        run: cargo install cargo-tarpaulin
+        run: |
+          v=$(cargo tarpaulin --version 2>/dev/null | awk '{print $NF}')
+          if [ -z "$v" ] || [ "$(printf '%s\n%s\n' 0.37.5 "$v" | sort -V | head -n1)" != 0.37.5 ]; then
+            cargo install cargo-tarpaulin --locked --force --version '>=0.37.5'
+          fi
       # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       # GENERATE CODE COVERAGE REPORT
       # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
